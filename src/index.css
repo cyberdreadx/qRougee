@@ -69,7 +69,9 @@ button {
   color: inherit;
 }
 
-input, textarea, select {
+input,
+textarea,
+select {
   font-family: var(--font);
   color: var(--fg);
 }
@@ -79,29 +81,66 @@ img {
   max-width: 100%;
 }
 
-ul, ol {
+ul,
+ol {
   list-style: none;
 }
 
 /* ---- Typography ---- */
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.2;
 }
 
-h1 { font-size: 2.25rem; }
-h2 { font-size: 1.5rem; }
-h3 { font-size: 1.125rem; font-weight: 600; }
-h4 { font-size: 0.9375rem; font-weight: 600; }
+h1 {
+  font-size: 2.25rem;
+}
 
-.text-sm { font-size: 0.875rem; }
-.text-xs { font-size: 0.75rem; }
-.text-muted { color: var(--muted); }
-.text-muted-light { color: var(--muted-light); }
-.tracking-tight { letter-spacing: -0.025em; }
-.font-medium { font-weight: 500; }
-.font-semibold { font-weight: 600; }
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.text-xs {
+  font-size: 0.75rem;
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.text-muted-light {
+  color: var(--muted-light);
+}
+
+.tracking-tight {
+  letter-spacing: -0.025em;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
 
 /* ---- Layout ---- */
 .app-layout {
@@ -1183,4 +1222,572 @@ textarea.form-input {
 .mint-success p {
   color: var(--muted);
   font-size: 0.875rem;
+}
+
+/* ============================================
+   Mobile Header (visible only on mobile)
+   ============================================ */
+.mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 52px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  transition: background var(--transition);
+}
+
+.mobile-menu-btn:hover {
+  background: var(--bg-secondary);
+}
+
+.mobile-logo {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.mobile-logo span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.mobile-header-spacer {
+  width: 36px;
+}
+
+/* Sidebar overlay */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 90;
+  backdrop-filter: blur(2px);
+}
+
+/* Sidebar close button (hidden on desktop) */
+.sidebar-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  color: var(--muted);
+  transition: all var(--transition);
+}
+
+.sidebar-close:hover {
+  color: var(--fg);
+  background: var(--bg-secondary);
+}
+
+/* ============================================
+   Responsive: Tablet (max-width: 768px)
+   ============================================ */
+@media (max-width: 768px) {
+
+  /* Show mobile header */
+  .mobile-header {
+    display: flex;
+  }
+
+  /* Show overlay when sidebar is open */
+  .sidebar-overlay {
+    display: block;
+  }
+
+  /* Show close button */
+  .sidebar-close {
+    display: flex;
+  }
+
+  /* Transform sidebar into slide-out drawer */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+    width: 280px;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Player bar full width */
+  .player-bar {
+    left: 0;
+    padding: 0 12px;
+    gap: 12px;
+    height: 72px;
+  }
+
+  /* Hide volume on tablet */
+  .player-volume {
+    display: none;
+  }
+
+  /* Compact track info */
+  .player-track-info {
+    min-width: 120px;
+    max-width: 180px;
+    gap: 10px;
+  }
+
+  .player-thumb {
+    width: 42px;
+    height: 42px;
+  }
+
+  /* Page padding */
+  .page-container {
+    padding: 24px 20px;
+  }
+
+  /* Reduce page bottom padding for smaller player */
+  .page-content {
+    padding-bottom: 72px;
+  }
+
+  /* Hero */
+  .hero {
+    padding: 32px 0 24px;
+    margin-bottom: 32px;
+  }
+
+  .hero h1 {
+    font-size: 2rem;
+  }
+
+  /* Stats row wrap */
+  .stats-row {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .stat {
+    min-width: 80px;
+  }
+
+  /* Track grid 2 columns */
+  .track-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .track-card {
+    padding: 8px;
+  }
+
+  /* Track detail stack */
+  .track-detail {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .track-detail-art {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    max-width: 320px;
+  }
+
+  .track-detail-title {
+    font-size: 1.75rem;
+  }
+
+  .track-detail-meta {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* Track list 3 columns (hide album) */
+  .track-list-header {
+    grid-template-columns: 32px 1fr 60px;
+    gap: 8px;
+    padding: 8px 8px;
+  }
+
+  .track-list-header span:nth-child(3) {
+    display: none;
+  }
+
+  .track-list-item {
+    grid-template-columns: 32px 1fr 60px;
+    gap: 8px;
+    padding: 8px 8px;
+  }
+
+  .track-list-item .track-list-artist-name:not(.track-list-info .track-list-artist-name) {
+    display: none;
+  }
+
+  /* Genre grid */
+  .genre-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .genre-card {
+    padding: 16px 12px;
+    font-size: 0.8125rem;
+  }
+
+  /* Section spacing */
+  .section {
+    margin-bottom: 28px;
+  }
+
+  .section-header h2 {
+    font-size: 1.1875rem;
+  }
+
+  /* Artist grid */
+  .artist-card {
+    width: 100px;
+  }
+
+  .artist-avatar {
+    width: 80px;
+    height: 80px;
+  }
+
+  /* Upload area */
+  .upload-area {
+    padding: 24px;
+  }
+
+  /* Chain info */
+  .chain-info-row {
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 0;
+  }
+
+  .chain-info-value {
+    word-break: break-all;
+  }
+
+  /* Mint success */
+  .mint-success {
+    padding: 32px 20px;
+  }
+
+  /* Typography scaling */
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+}
+
+/* ============================================
+   Responsive: Small phone (max-width: 480px)
+   ============================================ */
+@media (max-width: 480px) {
+  .page-container {
+    padding: 16px 14px;
+  }
+
+  /* Hero compact */
+  .hero {
+    padding: 20px 0 16px;
+    margin-bottom: 24px;
+  }
+
+  .hero h1 {
+    font-size: 1.5rem;
+    max-width: 100%;
+  }
+
+  .hero p {
+    font-size: 0.875rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Stats row 2x2 */
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px 0;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  /* Track grid single column on very small */
+  .track-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .track-card {
+    padding: 6px;
+    gap: 8px;
+  }
+
+  .track-card-title {
+    font-size: 0.8125rem;
+  }
+
+  .track-card-artist {
+    font-size: 0.75rem;
+  }
+
+  /* Always show play button on mobile (no hover) */
+  .track-card-play {
+    opacity: 1;
+    transform: translateY(0);
+    width: 32px;
+    height: 32px;
+  }
+
+  .track-card-play svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Player bar compact */
+  .player-bar {
+    height: 64px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .page-content {
+    padding-bottom: 64px;
+  }
+
+  .player-track-info {
+    min-width: 100px;
+    max-width: 140px;
+    gap: 8px;
+  }
+
+  .player-thumb {
+    width: 38px;
+    height: 38px;
+  }
+
+  .player-track-title {
+    font-size: 0.75rem;
+  }
+
+  .player-track-artist {
+    font-size: 0.6875rem;
+  }
+
+  .player-btn-play {
+    width: 32px;
+    height: 32px;
+  }
+
+  .player-btn-play svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .player-buttons {
+    gap: 12px;
+  }
+
+  .player-progress {
+    display: none;
+  }
+
+  /* Track detail */
+  .track-detail-art {
+    max-width: 100%;
+  }
+
+  .track-detail-title {
+    font-size: 1.375rem;
+  }
+
+  .track-detail-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .track-detail-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Search */
+  .search-page-input {
+    font-size: 0.875rem;
+    padding: 12px 16px 12px 40px;
+  }
+
+  /* Tabs */
+  .tabs {
+    gap: 0;
+  }
+
+  .tab {
+    padding: 8px 10px;
+    font-size: 0.8125rem;
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+  }
+
+  /* Typography */
+  h1 {
+    font-size: 1.375rem;
+  }
+
+  h2 {
+    font-size: 1.125rem;
+  }
+
+  h3 {
+    font-size: 1rem;
+  }
+
+  /* Artist grid */
+  .artist-grid {
+    gap: 16px;
+  }
+
+  .artist-card {
+    width: 80px;
+  }
+
+  .artist-avatar {
+    width: 64px;
+    height: 64px;
+  }
+
+  .artist-name {
+    font-size: 0.6875rem;
+  }
+
+  /* Empty state */
+  .empty-state {
+    padding: 40px 16px;
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 10px 16px;
+    font-size: 0.8125rem;
+  }
+
+  /* Forms */
+  .form-input {
+    padding: 10px 12px;
+  }
+
+  /* Genre grid */
+  .genre-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============================================
+   Touch device optimizations
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+
+  /* Always show play overlay on touch devices */
+  .track-card-play {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Bigger touch targets */
+  .sidebar-link {
+    padding: 12px 12px;
+    min-height: 44px;
+  }
+
+  .player-btn {
+    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .genre-card {
+    min-height: 44px;
+  }
+
+  .track-list-item {
+    min-height: 52px;
+  }
+
+  /* Remove hover effects that don't work on touch */
+  .track-card:hover {
+    background: transparent;
+  }
+
+  .sidebar-link:hover {
+    background: transparent;
+    color: var(--muted);
+  }
+
+  .sidebar-link.active {
+    background: var(--fg);
+    color: var(--accent-fg);
+  }
+
+  /* Active state for touch */
+  .track-card:active {
+    background: var(--bg-secondary);
+  }
+
+  .sidebar-link:active {
+    background: var(--bg-secondary);
+    color: var(--fg);
+  }
+
+  .genre-card:active {
+    background: var(--fg);
+    color: var(--accent-fg);
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .player-bar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .sidebar-wallet {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
 }

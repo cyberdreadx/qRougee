@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { PlayerProvider } from './hooks/usePlayer';
 import { WalletProvider } from './hooks/useWallet';
+import { SidebarProvider } from './hooks/useSidebar';
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
+import MobileHeader from './components/MobileHeader';
 import Home from './pages/Home';
 import SearchPage from './pages/Search';
 import LibraryPage from './pages/Library';
@@ -14,21 +16,24 @@ export default function App() {
     <BrowserRouter>
       <WalletProvider>
         <PlayerProvider>
-          <div className="app-layout">
-            <Sidebar />
-            <div className="main-content">
-              <div className="page-content">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/search" element={<SearchPage />} />
-                  <Route path="/library" element={<LibraryPage />} />
-                  <Route path="/upload" element={<UploadPage />} />
-                  <Route path="/track/:id" element={<TrackDetail />} />
-                </Routes>
+          <SidebarProvider>
+            <div className="app-layout">
+              <Sidebar />
+              <div className="main-content">
+                <MobileHeader />
+                <div className="page-content">
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/search" element={<SearchPage />} />
+                    <Route path="/library" element={<LibraryPage />} />
+                    <Route path="/upload" element={<UploadPage />} />
+                    <Route path="/track/:id" element={<TrackDetail />} />
+                  </Routes>
+                </div>
+                <PlayerBar />
               </div>
-              <PlayerBar />
             </div>
-          </div>
+          </SidebarProvider>
         </PlayerProvider>
       </WalletProvider>
     </BrowserRouter>
