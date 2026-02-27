@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, Search, Library, Upload, Wallet, X } from 'lucide-react';
 import { useWallet, truncateAddress } from '../hooks/useWallet';
@@ -8,10 +8,14 @@ export default function Sidebar() {
     const { isConnected, address, isLoading, connect, disconnect } = useWallet();
     const { isOpen, close } = useSidebar();
     const location = useLocation();
+    const prevPathRef = useRef(location.pathname);
 
-    // Close sidebar on route change (mobile)
+    // Close sidebar only on actual route changes (not initial mount)
     useEffect(() => {
-        close();
+        if (prevPathRef.current !== location.pathname) {
+            close();
+            prevPathRef.current = location.pathname;
+        }
     }, [location.pathname, close]);
 
     // Close sidebar on resize to desktop
