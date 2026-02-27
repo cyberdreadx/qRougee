@@ -1224,6 +1224,86 @@ textarea.form-input {
   font-size: 0.875rem;
 }
 
+/* ---- Artist Profile ---- */
+.artist-profile-header {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border);
+}
+
+.artist-profile-avatar {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.artist-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.artist-profile-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+}
+
+.artist-profile-type {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.artist-profile-name {
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+
+.artist-profile-bio {
+  font-size: 0.9375rem;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 480px;
+  margin-bottom: 14px;
+}
+
+.artist-profile-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.artist-profile-meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.artist-profile-actions {
+  display: flex;
+  gap: 10px;
+}
+
 /* ============================================
    Mobile Header (visible only on mobile)
    ============================================ */
@@ -1472,6 +1552,36 @@ textarea.form-input {
   .artist-avatar {
     width: 80px;
     height: 80px;
+  }
+
+  /* Artist profile */
+  .artist-profile-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 20px;
+  }
+
+  .artist-profile-avatar {
+    width: 140px;
+    height: 140px;
+  }
+
+  .artist-profile-info {
+    align-items: center;
+  }
+
+  .artist-profile-bio {
+    max-width: 100%;
+  }
+
+  .artist-profile-meta {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .artist-profile-name {
+    font-size: 1.75rem;
   }
 
   /* Upload area */

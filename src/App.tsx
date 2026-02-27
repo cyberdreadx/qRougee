@@ -10,6 +10,7 @@ import SearchPage from './pages/Search';
 import LibraryPage from './pages/Library';
 import UploadPage from './pages/Upload';
 import TrackDetail from './pages/TrackDetail';
+import ArtistProfile from './pages/ArtistProfile';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
                     <Route path="/library" element={<LibraryPage />} />
                     <Route path="/upload" element={<UploadPage />} />
                     <Route path="/track/:id" element={<TrackDetail />} />
+                    <Route path="/artist/:id" element={<ArtistProfile />} />
                   </Routes>
                 </div>
                 <PlayerBar />

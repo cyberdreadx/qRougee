@@ -1,9 +1,11 @@
+import { useNavigate } from 'react-router-dom';
 import TrackCard from '../components/TrackCard';
 import { MOCK_TRACKS, MOCK_ARTISTS } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
 
 export default function Home() {
     const { play } = usePlayer();
+    const navigate = useNavigate();
     const trending = MOCK_TRACKS.slice(0, 8);
     const newReleases = MOCK_TRACKS.slice(4, 10);
 
@@ -83,7 +85,11 @@ export default function Home() {
                 </div>
                 <div className="artist-grid">
                     {MOCK_ARTISTS.map(artist => (
-                        <div className="artist-card" key={artist.id}>
+                        <div
+                            className="artist-card"
+                            key={artist.id}
+                            onClick={() => navigate(`/artist/${artist.id}`)}
+                        >
                             <div className="artist-avatar">
                                 <img src={artist.avatarUrl} alt={artist.name} />
                             </div>

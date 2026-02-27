@@ -18,6 +18,10 @@ export interface Artist {
   name: string;
   avatarUrl: string;
   trackCount: number;
+  bio: string;
+  walletAddress: string;
+  listeners: number;
+  verified: boolean;
 }
 
 export interface Collection {
@@ -212,11 +216,11 @@ export const MOCK_TRACKS: Track[] = [
 ];
 
 export const MOCK_ARTISTS: Artist[] = [
-  { id: 'a1', name: 'Nyx Protocol', avatarUrl: avatar('N'), trackCount: 3 },
-  { id: 'a2', name: 'Cipher Wave', avatarUrl: avatar('C'), trackCount: 2 },
-  { id: 'a3', name: 'Block Phantom', avatarUrl: avatar('B'), trackCount: 2 },
-  { id: 'a4', name: 'Hash Garden', avatarUrl: avatar('H'), trackCount: 3 },
-  { id: 'a5', name: 'Validator Set', avatarUrl: avatar('V'), trackCount: 2 },
+  { id: 'a1', name: 'Nyx Protocol', avatarUrl: avatar('N'), trackCount: 3, bio: 'Post-quantum electronic producer exploring lattice-based sound design. All tracks minted with ML-DSA-65 signatures on RougeChain.', walletAddress: 'rouge1qx7...a3f2', listeners: 842, verified: true },
+  { id: 'a2', name: 'Cipher Wave', avatarUrl: avatar('C'), trackCount: 2, bio: 'Ambient soundscapes encrypted in zero-knowledge proofs. Building the future of decentralized audio.', walletAddress: 'rouge1mx4...b1e7', listeners: 531, verified: true },
+  { id: 'a3', name: 'Block Phantom', avatarUrl: avatar('B'), trackCount: 2, bio: 'Synthwave artist from the genesis block. Music for validators, by validators.', walletAddress: 'rouge1tz9...d4c8', listeners: 397, verified: false },
+  { id: 'a4', name: 'Hash Garden', avatarUrl: avatar('H'), trackCount: 3, bio: 'Lo-fi beats rooted in Merkle trees. Organic sounds cultivated on-chain.', walletAddress: 'rouge1kv2...e5a1', listeners: 628, verified: true },
+  { id: 'a5', name: 'Validator Set', avatarUrl: avatar('V'), trackCount: 2, bio: 'Techno forged in consensus. Every beat is a finalized block.', walletAddress: 'rouge1rf8...f6b3', listeners: 315, verified: false },
 ];
 
 export const GENRES = [
