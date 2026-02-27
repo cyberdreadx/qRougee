@@ -1327,11 +1327,13 @@ textarea.form-input {
     transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: none;
     width: 280px;
+    pointer-events: none;
   }
 
   .sidebar.open {
     transform: translateX(0);
     box-shadow: 8px 0 24px rgba(0, 0, 0, 0.1);
+    pointer-events: auto;
   }
 
   /* Player bar full width */
