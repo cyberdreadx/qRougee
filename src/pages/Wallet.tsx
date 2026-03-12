@@ -334,12 +334,9 @@ export default function WalletPage() {
                             marginBottom: 8,
                         }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <div style={{
-                                    width: 36, height: 36, borderRadius: '50%', display: 'flex',
-                                    alignItems: 'center', justifyContent: 'center',
-                                    background: 'linear-gradient(135deg, #a855f7, #ec4899)',
-                                    color: '#fff', fontWeight: 700, fontSize: '0.75rem',
-                                }}>XR</div>
+                                <img src="/icon-512.jpg" alt="XRGE" style={{
+                                    width: 36, height: 36, borderRadius: '50%',
+                                }} />
                                 <div>
                                     <div style={{ fontWeight: 600 }}>XRGE</div>
                                     <div className="text-xs text-muted">RougeChain Native</div>
