@@ -263,22 +263,13 @@ export default function TradePage() {
             </p>
 
             {/* Price Chart */}
-            {tokenSymbol && selectedPool && (() => {
-                const isTokenA = selectedPool.tokenA === tokenSymbol;
-                const price = isTokenA
-                    ? (selectedPool.reserveB / selectedPool.reserveA)
-                    : (selectedPool.reserveA / selectedPool.reserveB);
-                const reserveXRGE = isTokenA ? selectedPool.reserveB : selectedPool.reserveA;
-                const reserveToken = isTokenA ? selectedPool.reserveA : selectedPool.reserveB;
-                return (
-                    <TokenChart
-                        symbol={tokenSymbol}
-                        currentPrice={price}
-                        poolReserveA={reserveXRGE}
-                        poolReserveB={reserveToken}
-                    />
-                );
-            })()}
+            {tokenSymbol && selectedPool && (
+                <TokenChart
+                    symbol={tokenSymbol}
+                    poolId={selectedPool.poolId}
+                    isTokenA={selectedPool.tokenA === tokenSymbol}
+                />
+            )}
 
             <div className="trade-grid">
                 {/* Swap Panel */}

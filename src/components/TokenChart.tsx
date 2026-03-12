@@ -1,87 +1,63 @@
-import { useRef, useEffect, useState, useMemo } from 'react';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { TrendingUp, TrendingDown, Loader } from 'lucide-react';
+import { useRougeChain } from '../hooks/useRougeChain';
+import type { PriceSnapshot } from '@rougechain/sdk';
 
 interface TokenChartProps {
     symbol: string;
-    currentPrice: number;
-    poolReserveA: number;  // XRGE
-    poolReserveB: number;  // Token
+    poolId: string;
+    /** Is the song token tokenA in the pool? */
+    isTokenA: boolean;
 }
 
-interface Candle {
-    time: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-}
-
-type Timeframe = '1H' | '4H' | '1D' | '1W';
-
-/**
- * Generate simulated historical candle data from the current price.
- * Uses deterministic seeded randomness from the symbol to keep it stable across renders.
- */
-function generateCandles(symbol: string, currentPrice: number, count: number, intervalMs: number): Candle[] {
-    // Simple seed hash from symbol
-    let seed = 0;
-    for (let i = 0; i < symbol.length; i++) seed = ((seed << 5) - seed + symbol.charCodeAt(i)) | 0;
-    const rng = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 4294967296; };
-
-    const candles: Candle[] = [];
-    const now = Date.now();
-    let price = currentPrice * (0.5 + rng() * 0.5); // Start lower
-
-    for (let i = 0; i < count; i++) {
-        const volatility = 0.02 + rng() * 0.06;
-        const drift = (currentPrice - price) * 0.01 + (rng() - 0.48) * volatility * price;
-        const open = price;
-        const close = Math.max(0.0001, price + drift);
-        const high = Math.max(open, close) * (1 + rng() * volatility);
-        const low = Math.min(open, close) * (1 - rng() * volatility);
-        const volume = (100 + rng() * 900) * currentPrice;
-
-        candles.push({
-            time: now - (count - i) * intervalMs,
-            open, high, low, close, volume,
-        });
-        price = close;
-    }
-    return candles;
-}
-
-export default function TokenChart({ symbol, currentPrice, poolReserveA, poolReserveB }: TokenChartProps) {
+export default function TokenChart({ symbol, poolId, isTokenA }: TokenChartProps) {
+    const rc = useRougeChain();
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [timeframe, setTimeframe] = useState<Timeframe>('1D');
-    const [hoveredCandle, setHoveredCandle] = useState<Candle | null>(null);
+    const [snapshots, setSnapshots] = useState<PriceSnapshot[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-    const intervals: Record<Timeframe, { ms: number; count: number }> = {
-        '1H': { ms: 60_000, count: 60 },       // 1-min candles, 60 of them
-        '4H': { ms: 5 * 60_000, count: 48 },   // 5-min candles
-        '1D': { ms: 30 * 60_000, count: 48 },   // 30-min candles
-        '1W': { ms: 4 * 3600_000, count: 42 },  // 4-hour candles
-    };
+    const fetchPrices = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await rc.dex.getPriceHistory(poolId);
+            setSnapshots(Array.isArray(data) ? data : []);
+        } catch {
+            setSnapshots([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [rc, poolId]);
 
-    const candles = useMemo(
-        () => generateCandles(symbol + timeframe, currentPrice, intervals[timeframe].count, intervals[timeframe].ms),
-        [symbol, currentPrice, timeframe]
-    );
+    useEffect(() => { fetchPrices(); }, [fetchPrices]);
 
-    const priceChange = candles.length >= 2 ? candles[candles.length - 1].close - candles[0].open : 0;
-    const priceChangePct = candles.length >= 2
-        ? ((candles[candles.length - 1].close - candles[0].open) / candles[0].open * 100)
-        : 0;
+    // Price = how much XRGE per token
+    // If token is tokenA: price_a_in_b = how many B (XRGE) per A (token)
+    // If token is tokenB: price_b_in_a = how many A (XRGE) per B (token)
+    const prices = snapshots.map(s => ({
+        time: s.timestamp,
+        price: isTokenA ? s.price_a_in_b : s.price_b_in_a,
+        reserveXRGE: isTokenA ? s.reserve_b : s.reserve_a,
+        reserveToken: isTokenA ? s.reserve_a : s.reserve_b,
+    }));
+
+    const currentPrice = prices.length > 0 ? prices[prices.length - 1].price : 0;
+    const firstPrice = prices.length > 0 ? prices[0].price : 0;
+    const priceChange = currentPrice - firstPrice;
+    const priceChangePct = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
     const isPositive = priceChange >= 0;
 
+    const hovered = hoveredIdx !== null && hoveredIdx < prices.length ? prices[hoveredIdx] : null;
+    const displayPrice = hovered ? hovered.price : currentPrice;
+
+    // Draw chart
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || candles.length === 0) return;
+        if (!canvas || prices.length < 2) return;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Hi-DPI support
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
         canvas.width = rect.width * dpr;
@@ -90,220 +66,185 @@ export default function TokenChart({ symbol, currentPrice, poolReserveA, poolRes
         const W = rect.width;
         const H = rect.height;
 
-        // Clear
         ctx.clearRect(0, 0, W, H);
 
-        const padding = { top: 10, right: 60, bottom: 30, left: 10 };
-        const chartW = W - padding.left - padding.right;
-        const chartH = H - padding.top - padding.bottom;
+        const pad = { top: 10, right: 55, bottom: 28, left: 10 };
+        const chartW = W - pad.left - pad.right;
+        const chartH = H - pad.top - pad.bottom;
 
-        const allHigh = Math.max(...candles.map(c => c.high));
-        const allLow = Math.min(...candles.map(c => c.low));
-        const range = allHigh - allLow || 1;
+        const allPrices = prices.map(p => p.price);
+        const maxP = Math.max(...allPrices);
+        const minP = Math.min(...allPrices);
+        const range = maxP - minP || 1;
 
-        const toX = (i: number) => padding.left + (i / (candles.length - 1)) * chartW;
-        const toY = (price: number) => padding.top + (1 - (price - allLow) / range) * chartH;
+        const toX = (i: number) => pad.left + (i / (prices.length - 1)) * chartW;
+        const toY = (p: number) => pad.top + (1 - (p - minP) / range) * chartH;
 
-        // Grid lines
-        const gridLines = 5;
-        ctx.strokeStyle = 'rgba(128,128,128,0.12)';
+        // Grid
+        ctx.strokeStyle = 'rgba(128,128,128,0.1)';
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 4]);
-        for (let i = 0; i <= gridLines; i++) {
-            const y = padding.top + (i / gridLines) * chartH;
-            ctx.beginPath();
-            ctx.moveTo(padding.left, y);
-            ctx.lineTo(W - padding.right, y);
-            ctx.stroke();
-
-            // Y-axis labels
-            const val = allHigh - (i / gridLines) * range;
+        for (let g = 0; g <= 4; g++) {
+            const y = pad.top + (g / 4) * chartH;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+            const val = maxP - (g / 4) * range;
             ctx.fillStyle = 'rgba(128,128,128,0.5)';
             ctx.font = '10px system-ui, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(val.toFixed(val < 1 ? 4 : 2), W - padding.right + 6, y + 3);
+            ctx.fillText(val.toFixed(val < 1 ? 4 : 2), W - pad.right + 5, y + 3);
         }
         ctx.setLineDash([]);
 
-        // Area fill under the close prices
-        const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartH);
-        if (isPositive) {
-            gradient.addColorStop(0, 'rgba(34,197,94,0.25)');
-            gradient.addColorStop(1, 'rgba(34,197,94,0)');
-        } else {
-            gradient.addColorStop(0, 'rgba(239,68,68,0.25)');
-            gradient.addColorStop(1, 'rgba(239,68,68,0)');
-        }
+        // Area fill
+        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+        const color = isPositive ? '34,197,94' : '239,68,68';
+        grad.addColorStop(0, `rgba(${color},0.25)`);
+        grad.addColorStop(1, `rgba(${color},0)`);
 
         ctx.beginPath();
-        ctx.moveTo(toX(0), toY(candles[0].close));
-        for (let i = 1; i < candles.length; i++) {
-            ctx.lineTo(toX(i), toY(candles[i].close));
-        }
-        ctx.lineTo(toX(candles.length - 1), padding.top + chartH);
-        ctx.lineTo(toX(0), padding.top + chartH);
+        ctx.moveTo(toX(0), toY(prices[0].price));
+        for (let i = 1; i < prices.length; i++) ctx.lineTo(toX(i), toY(prices[i].price));
+        ctx.lineTo(toX(prices.length - 1), pad.top + chartH);
+        ctx.lineTo(toX(0), pad.top + chartH);
         ctx.closePath();
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = grad;
         ctx.fill();
 
         // Price line
         ctx.beginPath();
-        ctx.moveTo(toX(0), toY(candles[0].close));
-        for (let i = 1; i < candles.length; i++) {
-            ctx.lineTo(toX(i), toY(candles[i].close));
-        }
+        ctx.moveTo(toX(0), toY(prices[0].price));
+        for (let i = 1; i < prices.length; i++) ctx.lineTo(toX(i), toY(prices[i].price));
         ctx.strokeStyle = isPositive ? '#22c55e' : '#ef4444';
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Candlestick bodies
-        const candleW = Math.max(2, chartW / candles.length * 0.5);
-        for (let i = 0; i < candles.length; i++) {
-            const c = candles[i];
-            const x = toX(i);
-            const bullish = c.close >= c.open;
-            const color = bullish ? '#22c55e' : '#ef4444';
-
-            // Wick
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1;
+        // Dots at each data point
+        for (let i = 0; i < prices.length; i++) {
             ctx.beginPath();
-            ctx.moveTo(x, toY(c.high));
-            ctx.lineTo(x, toY(c.low));
-            ctx.stroke();
-
-            // Body
-            const top = toY(Math.max(c.open, c.close));
-            const bot = toY(Math.min(c.open, c.close));
-            const bodyH = Math.max(1, bot - top);
-            ctx.fillStyle = color;
-            ctx.fillRect(x - candleW / 2, top, candleW, bodyH);
+            ctx.arc(toX(i), toY(prices[i].price), 3, 0, Math.PI * 2);
+            ctx.fillStyle = isPositive ? '#22c55e' : '#ef4444';
+            ctx.fill();
         }
 
-        // Current price line
+        // Current price dashed line
         const lastY = toY(currentPrice);
-        ctx.strokeStyle = isPositive ? '#22c55e88' : '#ef444488';
+        ctx.strokeStyle = `rgba(${color},0.5)`;
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(padding.left, lastY);
-        ctx.lineTo(W - padding.right, lastY);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad.left, lastY); ctx.lineTo(W - pad.right, lastY); ctx.stroke();
         ctx.setLineDash([]);
 
         // Current price badge
         ctx.fillStyle = isPositive ? '#22c55e' : '#ef4444';
-        const badgeW = 52;
-        const badgeH = 18;
-        const badgeX = W - padding.right;
-        roundRect(ctx, badgeX, lastY - badgeH / 2, badgeW, badgeH, 3);
+        roundRect(ctx, W - pad.right, lastY - 9, 50, 18, 3);
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 10px system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(currentPrice.toFixed(currentPrice < 1 ? 4 : 2), badgeX + badgeW / 2, lastY + 4);
+        ctx.fillText(currentPrice.toFixed(currentPrice < 1 ? 4 : 2), W - pad.right + 25, lastY + 4);
 
-        // Volume bars at bottom
-        const maxVol = Math.max(...candles.map(c => c.volume));
-        const volH = chartH * 0.15;
-        for (let i = 0; i < candles.length; i++) {
-            const c = candles[i];
-            const x = toX(i);
-            const h = (c.volume / maxVol) * volH;
-            const bullish = c.close >= c.open;
-            ctx.fillStyle = bullish ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
-            ctx.fillRect(x - candleW / 2, padding.top + chartH - h, candleW, h);
+        // Hover crosshair
+        if (hoveredIdx !== null && hoveredIdx < prices.length) {
+            const hx = toX(hoveredIdx);
+            const hy = toY(prices[hoveredIdx].price);
+            ctx.strokeStyle = 'rgba(128,128,128,0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath(); ctx.moveTo(hx, pad.top); ctx.lineTo(hx, pad.top + chartH); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(pad.left, hy); ctx.lineTo(W - pad.right, hy); ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+            ctx.fillStyle = isPositive ? '#22c55e' : '#ef4444';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
 
-        // Time axis labels
+        // Time labels
         ctx.fillStyle = 'rgba(128,128,128,0.5)';
         ctx.font = '10px system-ui, sans-serif';
         ctx.textAlign = 'center';
-        const labelCount = Math.min(6, candles.length);
-        for (let i = 0; i < labelCount; i++) {
-            const idx = Math.floor((i / (labelCount - 1)) * (candles.length - 1));
-            const d = new Date(candles[idx].time);
-            let label: string;
-            if (timeframe === '1H' || timeframe === '4H') {
-                label = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-            } else if (timeframe === '1D') {
-                label = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-            } else {
-                label = `${d.getMonth() + 1}/${d.getDate()}`;
-            }
-            ctx.fillText(label, toX(idx), H - 8);
+        const labels = Math.min(5, prices.length);
+        for (let i = 0; i < labels; i++) {
+            const idx = Math.floor((i / (labels - 1)) * (prices.length - 1));
+            const d = new Date(prices[idx].time * 1000);
+            const label = `${(d.getMonth() + 1)}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+            ctx.fillText(label, toX(idx), H - 6);
         }
 
-    }, [candles, currentPrice, isPositive, timeframe]);
+    }, [prices, currentPrice, isPositive, hoveredIdx]);
 
-    // Handle mouse hover for crosshair
     const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
-        if (!canvas || candles.length === 0) return;
+        if (!canvas || prices.length < 2) return;
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const padding = { left: 10, right: 60 };
-        const chartW = rect.width - padding.left - padding.right;
-        const idx = Math.round(((x - padding.left) / chartW) * (candles.length - 1));
-        if (idx >= 0 && idx < candles.length) {
-            setHoveredCandle(candles[idx]);
-        }
+        const pad = { left: 10, right: 55 };
+        const chartW = rect.width - pad.left - pad.right;
+        const idx = Math.round(((x - pad.left) / chartW) * (prices.length - 1));
+        setHoveredIdx(Math.max(0, Math.min(prices.length - 1, idx)));
     };
-
-    const displayCandle = hoveredCandle || candles[candles.length - 1];
 
     return (
         <div className="token-chart">
             <div className="token-chart-header">
                 <div className="token-chart-title">
                     <span className="token-chart-symbol">{symbol}/XRGE</span>
-                    <span className="token-chart-price" style={{ color: isPositive ? '#22c55e' : '#ef4444' }}>
-                        {currentPrice.toFixed(currentPrice < 1 ? 4 : 2)} XRGE
-                    </span>
-                    <span className={`token-chart-change ${isPositive ? 'up' : 'down'}`}>
-                        {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                        {isPositive ? '+' : ''}{priceChangePct.toFixed(2)}%
-                    </span>
-                </div>
-                <div className="token-chart-timeframes">
-                    {(['1H', '4H', '1D', '1W'] as Timeframe[]).map(tf => (
-                        <button
-                            key={tf}
-                            className={`token-chart-tf${timeframe === tf ? ' active' : ''}`}
-                            onClick={() => setTimeframe(tf)}
-                        >
-                            {tf}
-                        </button>
-                    ))}
+                    {prices.length > 0 && (
+                        <>
+                            <span className="token-chart-price" style={{ color: isPositive ? '#22c55e' : '#ef4444' }}>
+                                {displayPrice.toFixed(displayPrice < 1 ? 4 : 2)} XRGE
+                            </span>
+                            <span className={`token-chart-change ${isPositive ? 'up' : 'down'}`}>
+                                {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                {isPositive ? '+' : ''}{priceChangePct.toFixed(2)}%
+                            </span>
+                        </>
+                    )}
                 </div>
             </div>
 
-            {/* OHLCV row */}
-            {displayCandle && (
+            {/* Hovered snapshot info */}
+            {hovered && (
                 <div className="token-chart-ohlcv">
-                    <span>O <b>{displayCandle.open.toFixed(4)}</b></span>
-                    <span>H <b>{displayCandle.high.toFixed(4)}</b></span>
-                    <span>L <b>{displayCandle.low.toFixed(4)}</b></span>
-                    <span>C <b>{displayCandle.close.toFixed(4)}</b></span>
-                    <span>Vol <b>{displayCandle.volume.toFixed(0)}</b></span>
+                    <span>Price <b>{hovered.price.toFixed(4)}</b></span>
+                    <span>Pool <b>{hovered.reserveXRGE.toLocaleString()} XRGE</b></span>
+                    <span>· <b>{hovered.reserveToken.toLocaleString()} {symbol}</b></span>
+                    <span>{new Date(hovered.time * 1000).toLocaleString()}</span>
                 </div>
             )}
 
             <div className="token-chart-canvas-wrap">
-                <canvas
-                    ref={canvasRef}
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={() => setHoveredCandle(null)}
-                />
+                {loading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220 }}>
+                        <Loader size={20} className="spin" style={{ opacity: 0.4 }} />
+                    </div>
+                ) : prices.length < 2 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220, flexDirection: 'column', gap: 8 }}>
+                        <TrendingUp size={24} style={{ opacity: 0.2 }} />
+                        <span className="text-sm text-muted">Not enough price history yet</span>
+                        <span className="text-xs text-muted">Chart will populate as trades happen</span>
+                    </div>
+                ) : (
+                    <canvas
+                        ref={canvasRef}
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={() => setHoveredIdx(null)}
+                    />
+                )}
             </div>
 
-            {/* Pool info */}
-            <div className="token-chart-pool">
-                <span>Pool Reserves:</span>
-                <span>{poolReserveA.toLocaleString()} XRGE</span>
-                <span>·</span>
-                <span>{poolReserveB.toLocaleString()} {symbol}</span>
-            </div>
+            {/* Current pool state */}
+            {prices.length > 0 && (
+                <div className="token-chart-pool">
+                    <span>{prices.length} price snapshot{prices.length !== 1 ? 's' : ''}</span>
+                    <span>·</span>
+                    <span>Latest: {prices[prices.length - 1].reserveXRGE.toLocaleString()} XRGE / {prices[prices.length - 1].reserveToken.toLocaleString()} {symbol}</span>
+                </div>
+            )}
 
             <style>{`
                 .token-chart {
@@ -352,32 +293,6 @@ export default function TokenChart({ symbol, currentPrice, poolReserveA, poolRes
                     color: #ef4444;
                     background: rgba(239, 68, 68, 0.12);
                 }
-                .token-chart-timeframes {
-                    display: flex;
-                    gap: 2px;
-                    background: var(--bg);
-                    border-radius: 6px;
-                    padding: 2px;
-                }
-                .token-chart-tf {
-                    background: none;
-                    border: none;
-                    color: var(--fg-muted);
-                    font-size: 0.7rem;
-                    font-weight: 600;
-                    padding: 4px 10px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    transition: all 0.15s;
-                }
-                .token-chart-tf.active {
-                    background: var(--surface);
-                    color: var(--fg);
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-                }
-                .token-chart-tf:hover:not(.active) {
-                    color: var(--fg);
-                }
                 .token-chart-ohlcv {
                     display: flex;
                     gap: 12px;
@@ -405,6 +320,7 @@ export default function TokenChart({ symbol, currentPrice, poolReserveA, poolRes
                     font-size: 0.7rem;
                     color: var(--fg-muted);
                     border-top: 1px solid var(--border);
+                    flex-wrap: wrap;
                 }
                 @media (max-width: 600px) {
                     .token-chart-canvas-wrap canvas {
