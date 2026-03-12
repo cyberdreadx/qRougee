@@ -1,0 +1,37 @@
+{
+  "name": "qRougee",
+  "short_name": "qRougee",
+  "description": "Decentralized Music. Own Your Sound.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#f97316",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"],
+  "shortcuts": [
+    {
+      "name": "Search",
+      "url": "/search",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Trade",
+      "url": "/trade",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

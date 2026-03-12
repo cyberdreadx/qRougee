@@ -3,6 +3,7 @@ import { ArrowLeftRight, Loader, Coins, AlertCircle, CheckCircle, RefreshCw } fr
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { useNftTracks } from '../hooks/useNftTracks';
+import TokenChart from '../components/TokenChart';
 
 interface SongToken {
     symbol: string;
@@ -261,7 +262,25 @@ export default function TradePage() {
                 Buy and sell song tokens on the RougeChain DEX · Balance: {balance} XRGE
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+            {/* Price Chart */}
+            {tokenSymbol && selectedPool && (() => {
+                const isTokenA = selectedPool.tokenA === tokenSymbol;
+                const price = isTokenA
+                    ? (selectedPool.reserveB / selectedPool.reserveA)
+                    : (selectedPool.reserveA / selectedPool.reserveB);
+                const reserveXRGE = isTokenA ? selectedPool.reserveB : selectedPool.reserveA;
+                const reserveToken = isTokenA ? selectedPool.reserveA : selectedPool.reserveB;
+                return (
+                    <TokenChart
+                        symbol={tokenSymbol}
+                        currentPrice={price}
+                        poolReserveA={reserveXRGE}
+                        poolReserveB={reserveToken}
+                    />
+                );
+            })()}
+
+            <div className="trade-grid">
                 {/* Swap Panel */}
                 <div>
                     <h3 style={{ marginBottom: 16 }}>
@@ -489,6 +508,17 @@ export default function TradePage() {
                     to { transform: rotate(360deg); }
                 }
                 .spin { animation: spin 1s linear infinite; }
+                .trade-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 32px;
+                }
+                @media (max-width: 700px) {
+                    .trade-grid {
+                        grid-template-columns: 1fr;
+                        gap: 24px;
+                    }
+                }
             `}</style>
         </div>
     );

@@ -359,7 +359,7 @@ export default function UploadPage() {
                                     {audioFile ? audioFile.name : 'MP3, WAV, FLAC up to 50MB'}
                                 </p>
                             </div>
-                            <input id="audio-upload" type="file" accept="audio/*" style={{ display: 'none' }}
+                            <input id="audio-upload" type="file" accept=".mp3,.wav,.flac,.aac,.ogg,.m4a,.wma" style={{ display: 'none' }}
                                 onChange={e => setAudioFile(e.target.files?.[0] || null)} />
                             {audioFile && (
                                 <div className="audio-preview" style={{ marginTop: 8 }}>
