@@ -17,6 +17,7 @@
   --border-hover: #d4d4d4;
   --accent: #000000;
   --accent-fg: #ffffff;
+  --accent-glow: rgba(0, 0, 0, 0.08);
   --radius: 6px;
   --radius-lg: 10px;
   --sidebar-width: 260px;
@@ -24,6 +25,20 @@
   --header-height: 56px;
   --transition: 150ms ease;
   --font: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --bg-secondary: #141414;
+  --fg: #f0f0f0;
+  --fg-secondary: #e0e0e0;
+  --muted: #888888;
+  --muted-light: #555555;
+  --border: #1e1e1e;
+  --border-hover: #2a2a2a;
+  --accent: #f0f0f0;
+  --accent-fg: #0a0a0a;
+  --accent-glow: rgba(255, 255, 255, 0.06);
 }
 
 /* ---- Reset & Base ---- */
@@ -270,6 +285,48 @@ h4 {
   border-color: var(--fg);
   background: var(--fg);
   color: var(--accent-fg);
+}
+
+/* ---- Theme Toggle ---- */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 4px 12px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+  border-radius: var(--radius);
+  transition: all var(--transition);
+  cursor: pointer;
+  background: none;
+  border: none;
+  width: calc(100% - 24px);
+}
+
+.theme-toggle:hover {
+  color: var(--fg);
+  background: var(--bg-secondary);
+}
+
+.theme-toggle svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* ---- Dark mode overrides ---- */
+[data-theme="dark"] .header {
+  background: rgba(10, 10, 10, 0.92);
+}
+
+[data-theme="dark"] .player-bar {
+  background: rgba(10, 10, 10, 0.9);
+}
+
+[data-theme="dark"] .sidebar-overlay {
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .wallet-btn.connected {
@@ -1304,6 +1361,259 @@ textarea.form-input {
   gap: 10px;
 }
 
+/* ---- Track Detail Hero (new layout) ---- */
+.track-detail-hero {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border);
+}
+
+.track-detail-cover {
+  width: 240px;
+  height: 240px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.track-detail-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.track-detail-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.track-detail-info h1 {
+  font-size: 2.25rem;
+  letter-spacing: -0.04em;
+  margin-bottom: 8px;
+}
+
+.track-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.track-detail-meta a {
+  color: var(--fg);
+  transition: color var(--transition);
+}
+
+.track-detail-meta a:hover {
+  color: var(--accent);
+}
+
+.track-detail-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* ---- Wizard Stepper ---- */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 32px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.wizard-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+
+.wizard-step.active .wizard-step-num {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.wizard-step.done .wizard-step-num {
+  background: rgba(0, 229, 255, 0.15);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.wizard-step-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.wizard-step.active .wizard-step-label {
+  color: var(--fg);
+}
+
+.wizard-step.done .wizard-step-label {
+  color: var(--accent);
+}
+
+.wizard-step-line {
+  width: 40px;
+  height: 1px;
+  background: var(--border);
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+.wizard-step.done + .wizard-step .wizard-step-line,
+.wizard-step.done .wizard-step-line {
+  background: var(--accent);
+}
+
+.wizard-nav {
+  display: flex;
+  gap: 12px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- Royalty Split Bar ---- */
+.split-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+
+.split-bar > div {
+  transition: width 200ms ease;
+}
+
+.split-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.split-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ---- Split Grid (tokenomics config) ---- */
+.split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.split-item label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+
+/* ---- Token List ---- */
+.token-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.token-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.token-list-item:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-secondary);
+}
+
+.token-list-item.selected {
+  border-color: var(--accent);
+  background: rgba(0, 229, 255, 0.05);
+}
+
+.token-list-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+.token-list-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---- Royalty Stats ---- */
+.royalty-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.royalty-stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.royalty-stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 8px 0 4px;
+  color: var(--accent);
+}
+
 /* ============================================
    Mobile Header (visible only on mobile)
    ============================================ */
@@ -1613,6 +1923,71 @@ textarea.form-input {
   h2 {
     font-size: 1.25rem;
   }
+
+  /* Track detail hero — stack on tablet */
+  .track-detail-hero {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .track-detail-cover {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    max-width: 280px;
+  }
+
+  .track-detail-info h1 {
+    font-size: 1.75rem;
+  }
+
+  .track-detail-actions {
+    flex-wrap: wrap;
+  }
+
+  /* Trade page — stack grid */
+  .page-container > div[style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Royalty stats — 1 col */
+  .royalty-stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .royalty-stat-card {
+    padding: 20px;
+  }
+
+  .royalty-stat-value {
+    font-size: 1.5rem;
+  }
+
+  /* Wizard — compact steps */
+  .wizard-steps {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .wizard-step-line {
+    width: 20px;
+    margin: 0 6px;
+  }
+
+  .wizard-step-label {
+    font-size: 0.75rem;
+  }
+
+  /* Split grid */
+  .split-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Token list */
+  .token-list-item {
+    padding: 10px 12px;
+  }
 }
 
 /* ============================================
@@ -1829,6 +2204,66 @@ textarea.form-input {
   .genre-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  /* Wizard — hide lines and labels on small phones */
+  .wizard-step-line {
+    display: none;
+  }
+
+  .wizard-step-label {
+    display: none;
+  }
+
+  .wizard-step-num {
+    width: 32px;
+    height: 32px;
+    font-size: 0.8125rem;
+  }
+
+  .wizard-steps {
+    justify-content: center;
+    gap: 8px;
+  }
+
+  /* Track detail — compact cover */
+  .track-detail-cover {
+    max-width: 200px;
+  }
+
+  .track-detail-info h1 {
+    font-size: 1.375rem;
+  }
+
+  .track-detail-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .track-detail-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Royalty stat cards */
+  .royalty-stat-card {
+    padding: 16px;
+  }
+
+  .royalty-stat-value {
+    font-size: 1.25rem;
+  }
+
+  /* Split bar legend */
+  .split-legend {
+    gap: 8px;
+    font-size: 0.6875rem;
+  }
+
+  /* Token list */
+  .token-list-cover {
+    width: 32px;
+    height: 32px;
+  }
 }
 
 /* ============================================
@@ -1873,7 +2308,7 @@ textarea.form-input {
   }
 
   .sidebar-link.active {
-    background: var(--fg);
+    background: var(--accent);
     color: var(--accent-fg);
   }
 
@@ -1888,7 +2323,7 @@ textarea.form-input {
   }
 
   .genre-card:active {
-    background: var(--fg);
+    background: var(--accent);
     color: var(--accent-fg);
   }
 }

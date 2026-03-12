@@ -1,24 +1,29 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, ExternalLink, Users, Music, Shield, Clock } from 'lucide-react';
-import { MOCK_ARTISTS, MOCK_TRACKS, formatDuration } from '../data/mockData';
+import { Play, ExternalLink, Users, Music, Shield, Clock, Coins } from 'lucide-react';
+import { formatDuration } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
+import { useNftTracks } from '../hooks/useNftTracks';
 import TrackCard from '../components/TrackCard';
 
 export default function ArtistProfile() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { play } = usePlayer();
+    const { tracks } = useNftTracks();
 
-    const artist = MOCK_ARTISTS.find(a => a.id === id);
-    const artistTracks = MOCK_TRACKS.filter(t => t.artist === artist?.name);
+    // id = artist name (URL-encoded)
+    const artistName = decodeURIComponent(id || '');
 
-    if (!artist) {
+    // Find all tracks by this artist
+    const artistTracks = tracks.filter(t => t.artist === artistName);
+
+    if (artistTracks.length === 0) {
         return (
             <div className="page-container">
                 <div className="empty-state">
                     <Users size={48} />
                     <h3>Artist not found</h3>
-                    <p>This artist doesn't exist or has been removed.</p>
+                    <p>No tracks found for this artist on RougeChain.</p>
                     <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => navigate('/')}>
                         Go Home
                     </button>
@@ -27,7 +32,14 @@ export default function ArtistProfile() {
         );
     }
 
+    // Derive artist profile from their tracks
+    const coverUrl = artistTracks[0].coverUrl;
+    const genres = [...new Set(artistTracks.map(t => t.genre).filter(g => g && g !== 'Unknown'))];
     const totalDuration = artistTracks.reduce((sum, t) => sum + t.duration, 0);
+    const collections = new Set(artistTracks.map(t => t.collectionId).filter(Boolean));
+    const tokenSymbols = [...new Set(artistTracks.map(t => t.tokenSymbol).filter(Boolean))];
+    // Get the wallet/owner from the first track
+    const walletAddress = artistTracks[0]?.owner || 'Unknown';
 
     const handlePlayAll = () => {
         if (artistTracks.length > 0) {
@@ -40,25 +52,28 @@ export default function ArtistProfile() {
             {/* Artist Header */}
             <div className="artist-profile-header">
                 <div className="artist-profile-avatar">
-                    <img src={artist.avatarUrl} alt={artist.name} />
+                    <img src={coverUrl} alt={artistName} style={{ objectFit: 'cover' }} />
                 </div>
                 <div className="artist-profile-info">
                     <div className="artist-profile-type">
-                        {artist.verified && <Shield size={12} />}
-                        {artist.verified ? 'Verified Artist' : 'Artist'}
+                        <Shield size={12} />
+                        Artist on RougeChain
                     </div>
-                    <h1 className="artist-profile-name">{artist.name}</h1>
-                    <p className="artist-profile-bio">{artist.bio}</p>
+                    <h1 className="artist-profile-name">{artistName}</h1>
+                    {genres.length > 0 && (
+                        <p className="artist-profile-bio">
+                            {genres.join(' · ')}
+                        </p>
+                    )}
                     <div className="artist-profile-meta">
-                        <span><Users size={14} /> {artist.listeners.toLocaleString()} listeners</span>
-                        <span><Music size={14} /> {artist.trackCount} tracks</span>
+                        <span><Music size={14} /> {artistTracks.length} track{artistTracks.length !== 1 ? 's' : ''}</span>
                         <span><Clock size={14} /> {formatDuration(totalDuration)} total</span>
+                        <span><Users size={14} /> {collections.size} collection{collections.size !== 1 ? 's' : ''}</span>
                     </div>
                     <div className="artist-profile-actions">
                         <button className="btn btn-primary" onClick={handlePlayAll}>
                             <Play size={16} /> Play All
                         </button>
-                        <button className="btn btn-secondary">Follow</button>
                     </div>
                 </div>
             </div>
@@ -70,20 +85,29 @@ export default function ArtistProfile() {
                 </div>
                 <div className="chain-info-row">
                     <span className="chain-info-label">Wallet</span>
-                    <span className="chain-info-value">{artist.walletAddress}</span>
+                    <span className="chain-info-value">{walletAddress}</span>
                 </div>
                 <div className="chain-info-row">
                     <span className="chain-info-label">Network</span>
                     <span className="chain-info-value">RougeChain Testnet</span>
                 </div>
                 <div className="chain-info-row">
-                    <span className="chain-info-label">Collections Minted</span>
-                    <span className="chain-info-value">{new Set(artistTracks.map(t => t.collectionId)).size}</span>
+                    <span className="chain-info-label">Collections</span>
+                    <span className="chain-info-value">{collections.size}</span>
                 </div>
                 <div className="chain-info-row">
-                    <span className="chain-info-label">Tokens Created</span>
+                    <span className="chain-info-label">Tracks Minted</span>
                     <span className="chain-info-value">{artistTracks.length}</span>
                 </div>
+                {tokenSymbols.length > 0 && (
+                    <div className="chain-info-row">
+                        <span className="chain-info-label">Song Tokens</span>
+                        <span className="chain-info-value">
+                            <Coins size={12} style={{ verticalAlign: -1, marginRight: 4 }} />
+                            {tokenSymbols.join(', ')}
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Discography */}
@@ -92,12 +116,11 @@ export default function ArtistProfile() {
                     <h2>Discography</h2>
                 </div>
 
-                {/* Track list */}
                 <div className="track-list">
                     <div className="track-list-header">
                         <span>#</span>
                         <span>Title</span>
-                        <span>Album</span>
+                        <span>Collection</span>
                         <span>Duration</span>
                     </div>
                     {artistTracks.map((track, idx) => (

@@ -1,22 +1,24 @@
 import { useState, useMemo } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import TrackCard from '../components/TrackCard';
-import { MOCK_TRACKS, GENRES } from '../data/mockData';
+import { GENRES } from '../data/mockData';
+import { useNftTracks } from '../hooks/useNftTracks';
 
 export default function SearchPage() {
     const [query, setQuery] = useState('');
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+    const { tracks } = useNftTracks();
 
     const results = useMemo(() => {
-        let tracks = MOCK_TRACKS;
+        let filtered = tracks;
 
         if (selectedGenre) {
-            tracks = tracks.filter(t => t.genre === selectedGenre);
+            filtered = filtered.filter(t => t.genre === selectedGenre);
         }
 
         if (query.trim()) {
             const q = query.toLowerCase();
-            tracks = tracks.filter(
+            filtered = filtered.filter(
                 t =>
                     t.title.toLowerCase().includes(q) ||
                     t.artist.toLowerCase().includes(q) ||
@@ -24,8 +26,8 @@ export default function SearchPage() {
             );
         }
 
-        return tracks;
-    }, [query, selectedGenre]);
+        return filtered;
+    }, [query, selectedGenre, tracks]);
 
     return (
         <div className="page-container">
