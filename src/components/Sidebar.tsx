@@ -64,6 +64,7 @@ export default function Sidebar() {
                 <div className="sidebar-logo">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <h1>
+                            <img src="/icon-512.jpg" alt="qRougee" style={{ width: 28, height: 28, borderRadius: '50%', verticalAlign: -6, marginRight: 8 }} />
                             q<span>Rougee</span>
                         </h1>
                         <button className="sidebar-close" onClick={close}>
