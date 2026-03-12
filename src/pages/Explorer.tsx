@@ -221,48 +221,38 @@ export default function Explorer() {
                                 href={explorerUrl('tx', tx.hash)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 12,
-                                    padding: '12px 16px', borderBottom: '1px solid var(--border)',
-                                    textDecoration: 'none', color: 'var(--fg)',
-                                }}
+                                className="explorer-tx"
                             >
-                                <div style={{
-                                    width: 32, height: 32, borderRadius: '50%',
+                                <div className="explorer-tx-icon" style={{
                                     background: `${txTypeColor(tx.type)}15`,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    flexShrink: 0,
                                 }}>
                                     {tx.to ? <ArrowDownLeft size={14} style={{ color: txTypeColor(tx.type) }} />
                                            : <ArrowUpRight size={14} style={{ color: txTypeColor(tx.type) }} />}
                                 </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 500, fontSize: '0.85rem' }}>
-                                        <span style={{
+                                <div className="explorer-tx-info">
+                                    <div className="explorer-tx-top">
+                                        <span className="explorer-tx-badge" style={{
                                             background: `${txTypeColor(tx.type)}20`,
                                             color: txTypeColor(tx.type),
-                                            padding: '2px 8px', borderRadius: 4,
-                                            fontSize: '0.7rem', fontWeight: 600,
-                                            marginRight: 8,
                                         }}>
                                             {formatTxType(tx.type)}
                                         </span>
-                                        {tx.hash && truncateHash(tx.hash, 10)}
+                                        <span className="explorer-tx-hash">{tx.hash && truncateHash(tx.hash, 8)}</span>
                                     </div>
-                                    <div className="text-xs text-muted" style={{ marginTop: 2 }}>
-                                        From: {truncateHash(tx.from)}
-                                        {tx.to && ` → ${truncateHash(tx.to)}`}
+                                    <div className="text-xs text-muted explorer-tx-from">
+                                        From: {truncateHash(tx.from, 6)}
+                                        {tx.to && <span className="explorer-tx-to"> → {truncateHash(tx.to, 6)}</span>}
                                     </div>
                                 </div>
-                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                <div className="explorer-tx-amount">
                                     {tx.amount !== undefined && (
-                                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                                            {tx.amount} {tx.token || 'XRGE'}
+                                        <div className="explorer-tx-value">
+                                            {tx.amount.toLocaleString()} {tx.token || 'XRGE'}
                                         </div>
                                     )}
                                     <div className="text-xs text-muted">{formatTime(tx.timestamp)}</div>
                                 </div>
-                                <ExternalLink size={12} style={{ opacity: 0.4, flexShrink: 0 }} />
+                                <ExternalLink size={12} className="explorer-tx-link" />
                             </a>
                         ))}
                     </div>
@@ -276,9 +266,7 @@ export default function Explorer() {
                                 No collections found
                             </p>
                         ) : (
-                            <div style={{
-                                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12,
-                            }}>
+                            <div className="explorer-grid">
                                 {collections.map(col => {
                                     const colTracks = tracks.filter(t => t.collectionId === col.collection_id);
                                     return (
@@ -287,18 +275,9 @@ export default function Explorer() {
                                             href={explorerUrl('collection', col.collection_id)}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            style={{
-                                                background: 'var(--surface)', border: '1px solid var(--border)',
-                                                borderRadius: 'var(--radius-lg)', overflow: 'hidden',
-                                                textDecoration: 'none', color: 'var(--fg)',
-                                                transition: 'border-color 0.2s',
-                                            }}
+                                            className="explorer-col-card"
                                         >
-                                            <div style={{
-                                                height: 100, background: 'var(--border)',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                overflow: 'hidden',
-                                            }}>
+                                            <div className="explorer-col-img">
                                                 {col.image ? (
                                                     <img src={col.image} alt={col.name}
                                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -347,11 +326,7 @@ export default function Explorer() {
                                     href={explorerUrl('token', sym)}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: 12,
-                                        padding: '14px 16px', borderBottom: '1px solid var(--border)',
-                                        textDecoration: 'none', color: 'var(--fg)',
-                                    }}
+                                    className="explorer-tx"
                                 >
                                     <div style={{
                                         width: 36, height: 36, borderRadius: '50%',
@@ -359,7 +334,7 @@ export default function Explorer() {
                                             ? 'linear-gradient(135deg, #a855f7, #ec4899)'
                                             : 'var(--border)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontWeight: 700, fontSize: '0.65rem',
+                                        fontWeight: 700, fontSize: '0.65rem', flexShrink: 0,
                                         color: sym === 'XRGE' ? '#fff' : 'var(--fg)',
                                     }}>
                                         {tok.image ? (
@@ -367,17 +342,17 @@ export default function Explorer() {
                                                 style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                                         ) : sym.slice(0, 3)}
                                     </div>
-                                    <div style={{ flex: 1 }}>
+                                    <div className="explorer-tx-info">
                                         <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{sym}</div>
                                         <div className="text-xs text-muted">{name}</div>
                                     </div>
-                                    <div style={{ textAlign: 'right' }}>
+                                    <div className="explorer-tx-amount">
                                         <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
                                             {supply > 0 ? supply.toLocaleString() : '—'}
                                         </div>
                                         <div className="text-xs text-muted">supply</div>
                                     </div>
-                                    <ExternalLink size={12} style={{ opacity: 0.4 }} />
+                                    <ExternalLink size={12} className="explorer-tx-link" />
                                 </a>
                             );
                         })}
@@ -391,6 +366,139 @@ export default function Explorer() {
                     to { transform: rotate(360deg); }
                 }
                 .spin { animation: spin 1s linear infinite; }
+
+                /* Explorer transaction rows */
+                .explorer-tx {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 12px 16px;
+                    border-bottom: 1px solid var(--border);
+                    text-decoration: none;
+                    color: var(--fg);
+                    transition: background 0.15s;
+                }
+                .explorer-tx:hover { background: var(--surface); }
+                .explorer-tx-icon {
+                    width: 32px; height: 32px;
+                    border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center;
+                    flex-shrink: 0;
+                }
+                .explorer-tx-info {
+                    flex: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                }
+                .explorer-tx-top {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    flex-wrap: wrap;
+                }
+                .explorer-tx-badge {
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }
+                .explorer-tx-hash {
+                    font-weight: 500;
+                    font-size: 0.8rem;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .explorer-tx-from {
+                    margin-top: 2px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .explorer-tx-amount {
+                    text-align: right;
+                    flex-shrink: 0;
+                }
+                .explorer-tx-value {
+                    font-weight: 600;
+                    font-size: 0.85rem;
+                    white-space: nowrap;
+                }
+                .explorer-tx-link {
+                    opacity: 0.4;
+                    flex-shrink: 0;
+                }
+
+                /* Explorer collection grid */
+                .explorer-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                    gap: 12px;
+                }
+                .explorer-col-card {
+                    background: var(--surface);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                    overflow: hidden;
+                    text-decoration: none;
+                    color: var(--fg);
+                    transition: border-color 0.2s;
+                }
+                .explorer-col-card:hover { border-color: var(--fg-muted); }
+                .explorer-col-img {
+                    height: 100px;
+                    background: var(--border);
+                    display: flex; align-items: center; justify-content: center;
+                    overflow: hidden;
+                }
+
+                /* Mobile responsive */
+                @media (max-width: 600px) {
+                    .explorer-tx {
+                        gap: 8px;
+                        padding: 10px 12px;
+                        flex-wrap: wrap;
+                    }
+                    .explorer-tx-icon {
+                        width: 28px;
+                        height: 28px;
+                    }
+                    .explorer-tx-info {
+                        flex: 1 1 calc(100% - 48px);
+                        min-width: 0;
+                    }
+                    .explorer-tx-hash {
+                        font-size: 0.72rem;
+                    }
+                    .explorer-tx-amount {
+                        flex-basis: 100%;
+                        text-align: left;
+                        padding-left: 36px;
+                        margin-top: -2px;
+                    }
+                    .explorer-tx-value {
+                        font-size: 0.78rem;
+                        display: inline;
+                    }
+                    .explorer-tx-amount .text-xs {
+                        display: inline;
+                        margin-left: 8px;
+                    }
+                    .explorer-tx-link {
+                        display: none;
+                    }
+                    .explorer-tx-to {
+                        display: none;
+                    }
+                    .explorer-grid {
+                        grid-template-columns: 1fr;
+                    }
+                    .explorer-col-img {
+                        height: 80px;
+                    }
+                }
             `}</style>
         </div>
     );

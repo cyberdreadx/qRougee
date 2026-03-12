@@ -6,7 +6,7 @@ import {
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { pinFolder, pinJson } from '../utils/pinata';
-import type { RoyaltySplit } from '../data/mockData';
+import { type RoyaltySplit, GENRES } from '../data/mockData';
 
 interface MintForm {
     // Step 1 — Upload
@@ -440,14 +440,9 @@ export default function UploadPage() {
                             <select className="form-input" value={form.genre}
                                 onChange={e => setForm({ ...form, genre: e.target.value })}>
                                 <option value="">Select a genre</option>
-                                <option value="Electronic">Electronic</option>
-                                <option value="Ambient">Ambient</option>
-                                <option value="Synthwave">Synthwave</option>
-                                <option value="Techno">Techno</option>
-                                <option value="Lo-fi">Lo-fi</option>
-                                <option value="House">House</option>
-                                <option value="Drum & Bass">Drum &amp; Bass</option>
-                                <option value="Downtempo">Downtempo</option>
+                                {GENRES.map(g => (
+                                    <option key={g} value={g}>{g}</option>
+                                ))}
                             </select>
                         </div>
 

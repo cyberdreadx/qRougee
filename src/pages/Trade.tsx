@@ -39,24 +39,26 @@ export default function TradePage() {
     const [loading, setLoading] = useState(false);
     const [quote, setQuote] = useState<{ amountOut: number; price: number } | null>(null);
 
-    // Build a set of known song token symbols from NFT track metadata
-    const songTokenSymbols = new Set(
-        tracks
-            .map(t => (t as unknown as Record<string, unknown>).tokenSymbol as string)
-            .filter(Boolean)
-    );
-
     const fetchTokensAndPools = useCallback(async () => {
         setLoading(true);
         try {
+            // Build song token symbols from NFT track metadata (inside callback to avoid stale closure)
+            const knownSongTokens = new Set(
+                tracks
+                    .map(t => (t as unknown as Record<string, unknown>).tokenSymbol as string)
+                    .filter(Boolean)
+            );
+
             // Fetch all tokens on-chain
             const allTokens = await rc.getTokens();
             const tokens: SongToken[] = (allTokens || [])
                 .filter((t) => {
                     const raw = t as unknown as Record<string, unknown>;
                     const sym = raw.symbol as string;
-                    // Show song tokens linked to minted tracks (via NFT metadata)
-                    return sym && sym !== 'XRGE' && songTokenSymbols.has(sym);
+                    if (!sym || sym === 'XRGE') return false;
+                    // If tracks loaded, filter to only song tokens minted via qRougee
+                    // If tracks not loaded yet, show all non-XRGE tokens as fallback
+                    return knownSongTokens.size === 0 || knownSongTokens.has(sym);
                 })
                 .map((t) => {
                     const raw = t as unknown as Record<string, unknown>;
@@ -111,7 +113,7 @@ export default function TradePage() {
         } finally {
             setLoading(false);
         }
-    }, [rc]);
+    }, [rc, tracks]);
 
     useEffect(() => {
         fetchTokensAndPools();

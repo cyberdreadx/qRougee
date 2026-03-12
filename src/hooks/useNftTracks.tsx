@@ -30,6 +30,7 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         tokenId: `tok_${token.token_id}`,
         mintDate: new Date(token.minted_at).toISOString().split('T')[0],
         owner: truncateCreator(token.owner),
+        tokenSymbol: attrs.tokenSymbol || undefined,
     };
 }
 
