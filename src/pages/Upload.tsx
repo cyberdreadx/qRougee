@@ -359,8 +359,19 @@ export default function UploadPage() {
                                     {audioFile ? audioFile.name : 'MP3, WAV, FLAC up to 50MB'}
                                 </p>
                             </div>
-                            <input id="audio-upload" type="file" accept=".mp3,.wav,.flac,.aac,.ogg,.m4a,.wma" style={{ display: 'none' }}
-                                onChange={e => setAudioFile(e.target.files?.[0] || null)} />
+                            <input id="audio-upload" type="file" style={{ display: 'none' }}
+                                onChange={e => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                                    const validExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'opus', 'webm'];
+                                    if (!validExts.includes(ext) && !file.type.startsWith('audio/')) {
+                                        alert('Please select an audio file (MP3, WAV, FLAC, AAC, M4A, OGG)');
+                                        e.target.value = '';
+                                        return;
+                                    }
+                                    setAudioFile(file);
+                                }} />
                             {audioFile && (
                                 <div className="audio-preview" style={{ marginTop: 8 }}>
                                     <audio
