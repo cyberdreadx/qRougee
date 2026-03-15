@@ -11,7 +11,7 @@ export default function TrackDetail() {
     const navigate = useNavigate();
     const { play, pause, currentTrack, isPlaying } = usePlayer();
     const { tracks: nftTracks } = useNftTracks();
-    const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 60, duration: 500 });
+    const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 60, duration: 500, deps: [id] });
 
     const allTracks = [...MOCK_TRACKS, ...nftTracks];
     const track = allTracks.find(t => t.id === id);

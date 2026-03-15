@@ -8,7 +8,7 @@ export default function Home() {
     const { play } = usePlayer();
     const navigate = useNavigate();
     const { tracks, isLoading } = useNftTracks();
-    const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 55, duration: 450 });
+    const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 55, duration: 450, deps: [tracks.length] });
     const trending = tracks.slice(0, 8);
     const newReleases = tracks.slice(4, 10);
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject, type DependencyList } from 'react';
 import { animate, stagger, createScope } from 'animejs';
 
 interface EntranceOptions {
@@ -12,6 +12,8 @@ interface EntranceOptions {
     staggerMs?: number;
     /** Y offset to animate from (px). Default: 24 */
     translateY?: number;
+    /** Extra deps that trigger re-animation when changed (e.g. data loading) */
+    deps?: DependencyList;
 }
 
 /**
@@ -19,9 +21,8 @@ interface EntranceOptions {
  * to child elements using anime.js v4 scoped animations.
  *
  * Usage:
- *   const root = useAnimeEntrance<HTMLDivElement>();
+ *   const root = useAnimeEntrance<HTMLDivElement>({ deps: [tracks.length] });
  *   return <div ref={root}>
- *     <div className="anime-stagger-item">...</div>
  *     <div className="anime-stagger-item">...</div>
  *   </div>
  */
@@ -36,15 +37,19 @@ export function useAnimeEntrance<T extends HTMLElement>(
         duration = 500,
         staggerMs = 50,
         translateY = 20,
+        deps = [],
     } = options;
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!root.current) return;
 
+        const items = root.current.querySelectorAll(selector);
+        if (items.length === 0) return;
+
         // Check for reduced motion preference
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            // Just show everything immediately
-            root.current.querySelectorAll(selector).forEach((el) => {
+            items.forEach((el) => {
                 (el as HTMLElement).style.opacity = '1';
                 (el as HTMLElement).style.transform = 'none';
             });
@@ -62,7 +67,7 @@ export function useAnimeEntrance<T extends HTMLElement>(
         });
 
         return () => scope.revert();
-    }, [selector, delay, duration, staggerMs, translateY]);
+    }, [selector, delay, duration, staggerMs, translateY, ...deps]);
 
     return root;
 }
