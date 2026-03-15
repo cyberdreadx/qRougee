@@ -15,7 +15,7 @@ interface NftTracksState {
  */
 function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
     // Attributes may contain our music metadata
-    const attrs = (token.attributes || {}) as Record<string, string>;
+    const attrs = (token.attributes || {}) as Record<string, any>;
 
     return {
         id: `${token.collection_id}_${token.token_id}`,
@@ -31,6 +31,10 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         mintDate: new Date(token.minted_at).toISOString().split('T')[0],
         owner: truncateCreator(token.owner),
         tokenSymbol: attrs.tokenSymbol || undefined,
+        tokenSupply: Number(attrs.tokenSupply) || undefined,
+        royaltySplit: attrs.royaltySplit || undefined,
+        playGateThreshold: Number(attrs.playGateThreshold) || undefined,
+        premiumThreshold: Number(attrs.premiumThreshold) || undefined,
     };
 }
 
