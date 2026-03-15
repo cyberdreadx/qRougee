@@ -2,11 +2,13 @@ import { useNavigate } from 'react-router-dom';
 import TrackCard from '../components/TrackCard';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
+import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
 
 export default function Home() {
     const { play } = usePlayer();
     const navigate = useNavigate();
     const { tracks, isLoading } = useNftTracks();
+    const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 55, duration: 450 });
     const trending = tracks.slice(0, 8);
     const newReleases = tracks.slice(4, 10);
 
@@ -27,9 +29,9 @@ export default function Home() {
     const artists = Array.from(artistMap.values());
 
     return (
-        <div className="page-container">
+        <div className="page-container" ref={rootRef}>
             {/* Hero */}
-            <div className="hero">
+            <div className="hero anime-stagger-item">
                 <h1>Decentralized Music, Owned by Artists</h1>
                 <p>
                     Stream tracks minted as NFTs on RougeChain. Every play is transparent.
@@ -49,7 +51,7 @@ export default function Home() {
             </div>
 
             {/* Stats */}
-            <div className="stats-row">
+            <div className="stats-row anime-stagger-item">
                 <div className="stat">
                     <div className="stat-value">{isLoading ? '...' : tracks.length}</div>
                     <div className="stat-label">Tracks</div>
@@ -70,7 +72,7 @@ export default function Home() {
 
             {/* Trending Tracks */}
             {trending.length > 0 && (
-                <div className="section">
+                <div className="section anime-stagger-item">
                     <div className="section-header">
                         <h2>Trending Tracks</h2>
                         <a href="/search" className="section-link">
@@ -87,7 +89,7 @@ export default function Home() {
 
             {/* New Releases */}
             {newReleases.length > 0 && (
-                <div className="section">
+                <div className="section anime-stagger-item">
                     <div className="section-header">
                         <h2>New Releases</h2>
                     </div>
@@ -101,7 +103,7 @@ export default function Home() {
 
             {/* Artists */}
             {artists.length > 0 && (
-                <div className="section">
+                <div className="section anime-stagger-item">
                     <div className="section-header">
                         <h2>Artists</h2>
                     </div>

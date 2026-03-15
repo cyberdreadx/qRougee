@@ -4,12 +4,14 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { MOCK_TRACKS, formatDuration } from '../data/mockData';
 import { explorerUrl } from '../utils/explorer';
+import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
 
 export default function TrackDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { play, pause, currentTrack, isPlaying } = usePlayer();
     const { tracks: nftTracks } = useNftTracks();
+    const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 60, duration: 500 });
 
     const allTracks = [...MOCK_TRACKS, ...nftTracks];
     const track = allTracks.find(t => t.id === id);
@@ -32,12 +34,12 @@ export default function TrackDetail() {
     const relatedTracks = allTracks.filter(t => t.artist === track.artist && t.id !== track.id);
 
     return (
-        <div className="page-container">
+        <div className="page-container" ref={rootRef}>
             <button className="btn btn-secondary" onClick={() => navigate(-1)} style={{ marginBottom: 24 }}>
                 <ArrowLeft size={16} /> Back
             </button>
 
-            <div className="track-detail-hero">
+            <div className="track-detail-hero anime-stagger-item">
                 <div className="track-detail-cover">
                     <img src={track.coverUrl} alt={track.title} />
                 </div>
@@ -74,7 +76,7 @@ export default function TrackDetail() {
             </div>
 
             {/* On-Chain Details */}
-            <div className="section" style={{ marginTop: 32 }}>
+            <div className="section anime-stagger-item" style={{ marginTop: 32 }}>
                 <h3 style={{ marginBottom: 16 }}>
                     <Shield size={16} style={{ verticalAlign: -2, marginRight: 6 }} />
                     On-Chain Details
@@ -123,7 +125,7 @@ export default function TrackDetail() {
 
             {/* Tokenomics */}
             {track.tokenSymbol && (
-                <div className="section">
+                <div className="section anime-stagger-item">
                     <h3 style={{ marginBottom: 16 }}>
                         <Coins size={16} style={{ verticalAlign: -2, marginRight: 6 }} />
                         Song Tokenomics
@@ -181,7 +183,7 @@ export default function TrackDetail() {
 
             {/* Related Tracks */}
             {relatedTracks.length > 0 && (
-                <div className="section">
+                <div className="section anime-stagger-item">
                     <h3 style={{ marginBottom: 16 }}>More by {track.artist}</h3>
                     <div className="track-list">
                         {relatedTracks.map((t, i) => (
