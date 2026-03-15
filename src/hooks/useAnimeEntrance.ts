@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject, type DependencyList } from 'react';
-import { animate, stagger, createScope } from 'animejs';
+import { animate, stagger } from 'animejs';
 
 interface EntranceOptions {
     /** CSS selector for items to stagger (relative to root). Default: '.anime-stagger-item' */
@@ -16,15 +16,14 @@ interface EntranceOptions {
     deps?: DependencyList;
 }
 
+const ANIMATED_ATTR = 'data-anime-done';
+
 /**
  * Hook that applies a staggered fade-in-up entrance animation
- * to child elements using anime.js v4 scoped animations.
+ * to child elements using anime.js v4.
  *
- * Usage:
- *   const root = useAnimeEntrance<HTMLDivElement>({ deps: [tracks.length] });
- *   return <div ref={root}>
- *     <div className="anime-stagger-item">...</div>
- *   </div>
+ * Only animates elements that haven't been animated yet, so it's
+ * safe to re-run when new async data causes new sections to mount.
  */
 export function useAnimeEntrance<T extends HTMLElement>(
     options: EntranceOptions = {},
@@ -44,29 +43,36 @@ export function useAnimeEntrance<T extends HTMLElement>(
     useEffect(() => {
         if (!root.current) return;
 
-        const items = root.current.querySelectorAll(selector);
-        if (items.length === 0) return;
+        // Find only items that haven't been animated yet
+        const allItems = root.current.querySelectorAll(selector);
+        const newItems = Array.from(allItems).filter(
+            (el) => !el.hasAttribute(ANIMATED_ATTR),
+        );
+
+        if (newItems.length === 0) return;
 
         // Check for reduced motion preference
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            items.forEach((el) => {
+            newItems.forEach((el) => {
                 (el as HTMLElement).style.opacity = '1';
                 (el as HTMLElement).style.transform = 'none';
+                el.setAttribute(ANIMATED_ATTR, '1');
             });
             return;
         }
 
-        const scope = createScope({ root }).add(() => {
-            animate(selector, {
-                opacity: [0, 1],
-                translateY: [translateY, 0],
-                delay: stagger(staggerMs, { start: delay }),
-                duration,
-                ease: 'out(3)',
-            });
+        // Mark items as animated before starting so re-runs don't double-animate
+        newItems.forEach((el) => el.setAttribute(ANIMATED_ATTR, '1'));
+
+        animate(newItems, {
+            opacity: [0, 1],
+            translateY: [translateY, 0],
+            delay: stagger(staggerMs, { start: delay }),
+            duration,
+            ease: 'out(3)',
         });
 
-        return () => scope.revert();
+        // No scope.revert() — we want elements to keep their final visible state
     }, [selector, delay, duration, staggerMs, translateY, ...deps]);
 
     return root;
