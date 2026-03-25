@@ -1,5 +1,5 @@
 // qRougee Service Worker — offline caching + PWA support
-const CACHE_NAME = 'qrougee-v1';
+const CACHE_NAME = 'qrougee-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',

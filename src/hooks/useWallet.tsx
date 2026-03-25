@@ -12,7 +12,12 @@ interface WalletState {
 interface WalletContextType extends WalletState {
     /** Full wallet keys for signing — stored in sessionStorage (survives refresh, clears on tab close) */
     walletKeys: WalletKeys | null;
+    /** Whether the RougeChain Wallet browser extension is detected */
+    extensionDetected: boolean;
+    /** Whether the current wallet is connected via extension (read-only, signing via extension) */
+    isExtensionWallet: boolean;
     connect: () => Promise<void>;
+    connectExtension: () => Promise<void>;
     connectFromKeys: (keys: WalletKeys) => Promise<void>;
     disconnect: () => void;
     requestFaucet: () => Promise<void>;
@@ -58,6 +63,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const rc = useRougeChain();
 
     const [walletKeys, setWalletKeys] = useState<WalletKeys | null>(null);
+    const [extensionDetected, setExtensionDetected] = useState(false);
+    const [isExtensionWallet, setIsExtensionWallet] = useState(false);
+
+    // Detect RougeChain Wallet browser extension
+    useEffect(() => {
+        const check = () => setExtensionDetected(!!(window as any).rougechain?.isRougeChain);
+        check();
+        window.addEventListener('rougechain#initialized', check);
+        return () => window.removeEventListener('rougechain#initialized', check);
+    }, []);
 
     const [state, setState] = useState<WalletState>({
         publicKey: null,
@@ -140,9 +155,41 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         await fetchBalance(keys.publicKey);
     }, [fetchBalance]);
 
+    const connectExtension = useCallback(async () => {
+        setState(prev => ({ ...prev, isLoading: true }));
+        try {
+            const provider = (window as any).rougechain;
+            if (!provider?.isRougeChain) {
+                throw new Error('RougeChain Wallet extension not found');
+            }
+            const result = await provider.connect() as { publicKey: string };
+            if (!result?.publicKey) throw new Error('Extension did not return a public key');
+
+            // Extension wallet — signing happens in the extension, we only store the pubkey
+            const keys: WalletKeys = { publicKey: result.publicKey, privateKey: '' };
+            setWalletKeys(keys);
+            setIsExtensionWallet(true);
+            saveSessionKeys(keys);
+            sessionStorage.setItem('qrougee_ext_wallet', 'true');
+
+            setState({
+                publicKey: result.publicKey,
+                balance: '0',
+                isConnected: true,
+                isLoading: false,
+            });
+
+            await fetchBalance(result.publicKey);
+        } catch {
+            setState(prev => ({ ...prev, isLoading: false }));
+        }
+    }, [fetchBalance]);
+
     const disconnect = useCallback(() => {
         setWalletKeys(null);
         clearSessionKeys();
+        setIsExtensionWallet(false);
+        sessionStorage.removeItem('qrougee_ext_wallet');
         setState({
             publicKey: null,
             balance: '0',
@@ -173,7 +220,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             value={{
                 ...state,
                 walletKeys,
+                extensionDetected,
+                isExtensionWallet,
                 connect,
+                connectExtension,
                 connectFromKeys,
                 disconnect,
                 requestFaucet,

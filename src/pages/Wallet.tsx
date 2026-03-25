@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
     Wallet as WalletIcon, Copy, Check, Droplets, Download, Upload,
     Coins, Image as ImageIcon, ArrowUpRight, ArrowDownLeft, RefreshCw,
-    Shield, LogOut, KeyRound, AlertCircle,
+    Shield, LogOut, KeyRound, AlertCircle, Puzzle, Send,
 } from 'lucide-react';
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
@@ -36,7 +36,7 @@ interface TxRecord {
 /* ────────────────────────────────────────────────────────── */
 
 export default function WalletPage() {
-    const { isConnected, publicKey, balance, walletKeys, connect, disconnect, requestFaucet, refreshBalance } = useWallet();
+    const { isConnected, publicKey, balance, walletKeys, connect, connectExtension, connectFromKeys, extensionDetected, disconnect, requestFaucet, refreshBalance } = useWallet();
     const rc = useRougeChain();
 
     const [copied, setCopied] = useState(false);
@@ -46,6 +46,15 @@ export default function WalletPage() {
     const [loading, setLoading] = useState(false);
     const [faucetLoading, setFaucetLoading] = useState(false);
     const [tab, setTab] = useState<'tokens' | 'nfts' | 'activity'>('tokens');
+
+    // Send/Transfer
+    const [showSendModal, setShowSendModal] = useState(false);
+    const [sendTo, setSendTo] = useState('');
+    const [sendAmount, setSendAmount] = useState('');
+    const [sendToken, setSendToken] = useState('XRGE');
+    const [sendLoading, setSendLoading] = useState(false);
+    const [sendError, setSendError] = useState('');
+    const [sendSuccess, setSendSuccess] = useState('');
 
     // Keystore
     const [showExportModal, setShowExportModal] = useState(false);
@@ -151,15 +160,38 @@ export default function WalletPage() {
         setKeystoreError('');
         try {
             const keys = await importKeystore(importFile, importPass);
-            // We need connectFromKeys but it's not exposed — use the wallet context
-            // For now we'll signal the user
-            console.log('Imported keys:', keys.publicKey);
+            await connectFromKeys(keys);
             setShowImportModal(false);
             setImportPass('');
             setImportFile(null);
-            window.location.reload();
         } catch {
             setKeystoreError('Wrong passphrase or corrupted keystore file');
+        }
+    };
+
+    const handleSend = async () => {
+        if (!walletKeys || !sendTo || !sendAmount) return;
+        setSendLoading(true);
+        setSendError('');
+        setSendSuccess('');
+        try {
+            const amt = parseFloat(sendAmount);
+            if (isNaN(amt) || amt <= 0) throw new Error('Invalid amount');
+            const result = await rc.transfer(walletKeys, {
+                to: sendTo,
+                amount: amt,
+                token: sendToken === 'XRGE' ? undefined : sendToken,
+            });
+            if (!result.success) throw new Error(result.error || 'Transfer failed');
+            setSendSuccess(`Sent ${amt} ${sendToken} successfully`);
+            setSendTo('');
+            setSendAmount('');
+            // Refresh after short delay for chain confirmation
+            setTimeout(() => { fetchWalletData(); }, 2000);
+        } catch (err) {
+            setSendError(err instanceof Error ? err.message : 'Transfer failed');
+        } finally {
+            setSendLoading(false);
         }
     };
 
@@ -199,13 +231,31 @@ export default function WalletPage() {
                     <p className="text-muted" style={{ marginBottom: 24, maxWidth: 360 }}>
                         Connect to manage your XRGE balance, song tokens, NFTs, and keys.
                     </p>
-                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <button className="btn btn-primary" onClick={connect}>
-                            <WalletIcon size={16} /> New Wallet
-                        </button>
-                        <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
-                            <KeyRound size={16} /> Import Keystore
-                        </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                        {extensionDetected && (
+                            <button className="btn btn-primary" onClick={connectExtension} style={{ gap: 8 }}>
+                                <Puzzle size={16} /> Connect Extension
+                            </button>
+                        )}
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button className="btn btn-secondary" onClick={connect}>
+                                <WalletIcon size={16} /> New Wallet
+                            </button>
+                            <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
+                                <KeyRound size={16} /> Import Keystore
+                            </button>
+                        </div>
+                        {!extensionDetected && (
+                            <a
+                                href="https://chromewebstore.google.com/detail/rougechain-wallet/ilkbgjgphhaolfdjkfefdfiifipmhakj"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-muted"
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}
+                            >
+                                <Puzzle size={12} /> Get RougeChain Wallet Extension
+                            </a>
+                        )}
                     </div>
                 </div>
 
@@ -290,6 +340,11 @@ export default function WalletPage() {
                             style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
                             <Droplets size={14} />
                             {faucetLoading ? 'Claiming...' : 'Faucet'}
+                        </button>
+                        <button className="btn btn-primary" onClick={() => { setShowSendModal(true); setSendError(''); setSendSuccess(''); }}
+                            style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
+                            <Send size={14} />
+                            Send
                         </button>
                         <button className="btn btn-secondary" onClick={fetchWalletData} disabled={loading}
                             style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
@@ -597,6 +652,74 @@ export default function WalletPage() {
                 }
                 .spin { animation: spin 1s linear infinite; }
             `}</style>
+
+            {/* Send/Transfer Modal */}
+            {showSendModal && (
+                <div className="sidebar-overlay" style={{
+                    zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={() => setShowSendModal(false)}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: 'var(--bg)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-lg)', padding: 24, maxWidth: 440, width: '90%',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    }}>
+                        <h3 style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Send size={18} /> Send Tokens
+                        </h3>
+                        <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+                            Transfer XRGE or song tokens to another wallet.
+                        </p>
+                        <div style={{ marginBottom: 12 }}>
+                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Recipient Public Key</label>
+                            <input type="text" className="form-input" placeholder="Paste recipient's public key"
+                                value={sendTo} onChange={e => setSendTo(e.target.value)}
+                                style={{ fontFamily: 'monospace', fontSize: '0.8rem' }} />
+                        </div>
+                        <div style={{ marginBottom: 12 }}>
+                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Token</label>
+                            <select className="form-input" value={sendToken}
+                                onChange={e => setSendToken(e.target.value)}>
+                                <option value="XRGE">XRGE (native)</option>
+                                {tokens.map(t => (
+                                    <option key={t.symbol} value={t.symbol}>
+                                        {t.symbol} (bal: {t.balance.toLocaleString()})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={{ marginBottom: 12 }}>
+                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Amount</label>
+                            <input type="number" className="form-input" placeholder="0.00"
+                                value={sendAmount} onChange={e => setSendAmount(e.target.value)}
+                                min={0} step="0.01" />
+                        </div>
+                        {sendError && (
+                            <p style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <AlertCircle size={12} /> {sendError}
+                            </p>
+                        )}
+                        {sendSuccess && (
+                            <p style={{ color: '#4ade80', fontSize: '0.75rem', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Check size={12} /> {sendSuccess}
+                            </p>
+                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn btn-primary" style={{ flex: 1 }}
+                                onClick={handleSend}
+                                disabled={sendLoading || !sendTo || !sendAmount}>
+                                {sendLoading ? 'Sending...' : 'Send'}
+                            </button>
+                            <button className="btn btn-secondary"
+                                onClick={() => setShowSendModal(false)}>
+                                Cancel
+                            </button>
+                        </div>
+                        <p className="text-xs text-muted" style={{ textAlign: 'center', marginTop: 8 }}>
+                            Signed with ML-DSA-65 · Fee: ~0.5 XRGE
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
