@@ -1,9 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { Wallet, type WalletKeys } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
+import { pubkeyToAddress, formatAddress } from '../utils/address';
 
 interface WalletState {
     publicKey: string | null;
+    /** rouge1... bech32m address derived from pubkey */
+    address: string | null;
     balance: string;
     isConnected: boolean;
     isLoading: boolean;
@@ -27,6 +30,8 @@ interface WalletContextType extends WalletState {
 const WalletContext = createContext<WalletContextType | null>(null);
 
 function truncateKey(key: string): string {
+    // rouge1 addresses get special formatting
+    if (key.startsWith('rouge1')) return formatAddress(key, 12, 4);
     if (key.length <= 16) return key;
     return key.slice(0, 8) + '...' + key.slice(-6);
 }
@@ -76,6 +81,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const [state, setState] = useState<WalletState>({
         publicKey: null,
+        address: null,
         balance: '0',
         isConnected: false,
         isLoading: false,
@@ -101,11 +107,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setWalletKeys(keys);
             setState({
                 publicKey: keys.publicKey,
+                address: null,
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
             });
-            // Fetch balance in background
+            // Derive rouge1 address
+            pubkeyToAddress(keys.publicKey).then(addr => {
+                setState(prev => ({ ...prev, address: addr }));
+            });
             fetchBalance(keys.publicKey);
         }
     }, [fetchBalance]);
@@ -120,8 +130,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setWalletKeys(keys);
             saveSessionKeys(keys);
 
+            const addr = await pubkeyToAddress(keys.publicKey);
+
             setState({
                 publicKey: keys.publicKey,
+                address: addr,
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
@@ -145,8 +158,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setWalletKeys(keys);
         saveSessionKeys(keys);
 
+        const addr = await pubkeyToAddress(keys.publicKey);
+
         setState({
             publicKey: keys.publicKey,
+            address: addr,
             balance: '0',
             isConnected: true,
             isLoading: false,
@@ -165,15 +181,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const result = await provider.connect() as { publicKey: string };
             if (!result?.publicKey) throw new Error('Extension did not return a public key');
 
-            // Extension wallet — signing happens in the extension, we only store the pubkey
             const keys: WalletKeys = { publicKey: result.publicKey, privateKey: '' };
             setWalletKeys(keys);
             setIsExtensionWallet(true);
             saveSessionKeys(keys);
             sessionStorage.setItem('qrougee_ext_wallet', 'true');
 
+            const addr = await pubkeyToAddress(result.publicKey);
+
             setState({
                 publicKey: result.publicKey,
+                address: addr,
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
@@ -192,6 +210,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem('qrougee_ext_wallet');
         setState({
             publicKey: null,
+            address: null,
             balance: '0',
             isConnected: false,
             isLoading: false,

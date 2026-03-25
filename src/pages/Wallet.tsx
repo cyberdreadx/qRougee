@@ -36,7 +36,7 @@ interface TxRecord {
 /* ────────────────────────────────────────────────────────── */
 
 export default function WalletPage() {
-    const { isConnected, publicKey, balance, walletKeys, connect, connectExtension, connectFromKeys, extensionDetected, disconnect, requestFaucet, refreshBalance } = useWallet();
+    const { isConnected, publicKey, address, balance, walletKeys, connect, connectExtension, connectFromKeys, extensionDetected, disconnect, requestFaucet, refreshBalance } = useWallet();
     const rc = useRougeChain();
 
     const [copied, setCopied] = useState(false);
@@ -65,8 +65,8 @@ export default function WalletPage() {
     const [keystoreError, setKeystoreError] = useState('');
 
     const copyKey = () => {
-        if (!publicKey) return;
-        navigator.clipboard.writeText(publicKey);
+        if (!address && !publicKey) return;
+        navigator.clipboard.writeText(address || publicKey!);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -331,7 +331,7 @@ export default function WalletPage() {
                             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                             fontFamily: 'monospace', fontSize: '0.75rem', padding: 0,
                         }}>
-                            {truncateKey(publicKey!)}
+                            {address ? truncateKey(address) : truncateKey(publicKey!)}
                             {copied ? <Check size={12} color="#22c55e" /> : <Copy size={12} />}
                         </button>
                     </div>

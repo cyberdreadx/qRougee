@@ -6,7 +6,7 @@ import { useSidebar } from '../hooks/useSidebar';
 import { useTheme } from '../hooks/useTheme';
 
 export default function Sidebar() {
-    const { isConnected, publicKey, isLoading, connect, connectFromKeys } = useWallet();
+    const { isConnected, publicKey, address, isLoading, connect, connectFromKeys } = useWallet();
     const { isOpen, close } = useSidebar();
     const { theme, toggleTheme } = useTheme();
     const location = useLocation();
@@ -140,7 +140,7 @@ export default function Sidebar() {
                         <NavLink to="/wallet" className="wallet-btn connected" style={{ textDecoration: 'none' }}>
                             <span className="wallet-dot" />
                             <span style={{ flex: 1, textAlign: 'left' }}>
-                                {truncateKey(publicKey!)}
+                                {address ? truncateKey(address) : truncateKey(publicKey!)}
                             </span>
                             <Wallet size={14} />
                         </NavLink>
