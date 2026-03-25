@@ -1,12 +1,15 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import { Wallet, type WalletKeys } from '@rougechain/sdk';
+import { type WalletKeys } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { pubkeyToAddress, formatAddress } from '../utils/address';
+import { generateMnemonic, validateMnemonic, keypairFromMnemonic } from '../utils/mnemonic';
 
 interface WalletState {
     publicKey: string | null;
     /** rouge1... bech32m address derived from pubkey */
     address: string | null;
+    /** 12-word BIP-39 mnemonic (only available for wallets created via New Wallet) */
+    mnemonic: string | null;
     balance: string;
     isConnected: boolean;
     isLoading: boolean;
@@ -22,6 +25,7 @@ interface WalletContextType extends WalletState {
     connect: () => Promise<void>;
     connectExtension: () => Promise<void>;
     connectFromKeys: (keys: WalletKeys) => Promise<void>;
+    connectFromMnemonic: (mnemonic: string) => Promise<void>;
     disconnect: () => void;
     requestFaucet: () => Promise<void>;
     refreshBalance: () => Promise<void>;
@@ -82,6 +86,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [state, setState] = useState<WalletState>({
         publicKey: null,
         address: null,
+        mnemonic: null,
         balance: '0',
         isConnected: false,
         isLoading: false,
@@ -105,14 +110,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const keys = loadSessionKeys();
         if (keys) {
             setWalletKeys(keys);
+            const mnemonic = (keys as any).mnemonic || null;
             setState({
                 publicKey: keys.publicKey,
                 address: null,
+                mnemonic,
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
             });
-            // Derive rouge1 address
             pubkeyToAddress(keys.publicKey).then(addr => {
                 setState(prev => ({ ...prev, address: addr }));
             });
@@ -124,17 +130,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setState(prev => ({ ...prev, isLoading: true }));
 
         try {
-            const wallet = Wallet.generate();
-            const keys = wallet.toJSON();
+            const mnemonic = generateMnemonic();
+            const { publicKey, privateKey } = keypairFromMnemonic(mnemonic);
+            const keys: WalletKeys = { publicKey, privateKey };
 
             setWalletKeys(keys);
-            saveSessionKeys(keys);
+            saveSessionKeys({ ...keys, mnemonic } as any);
 
             const addr = await pubkeyToAddress(keys.publicKey);
 
             setState({
                 publicKey: keys.publicKey,
                 address: addr,
+                mnemonic,
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
@@ -152,6 +160,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
     }, [rc, fetchBalance]);
 
+    const connectFromMnemonic = useCallback(async (mnemonic: string) => {
+        setState(prev => ({ ...prev, isLoading: true }));
+        try {
+            if (!validateMnemonic(mnemonic)) {
+                throw new Error('Invalid seed phrase');
+            }
+            const { publicKey, privateKey } = keypairFromMnemonic(mnemonic);
+            const keys: WalletKeys = { publicKey, privateKey };
+
+            setWalletKeys(keys);
+            saveSessionKeys({ ...keys, mnemonic } as any);
+
+            const addr = await pubkeyToAddress(keys.publicKey);
+
+            setState({
+                publicKey: keys.publicKey,
+                address: addr,
+                mnemonic,
+                balance: '0',
+                isConnected: true,
+                isLoading: false,
+            });
+
+            await fetchBalance(keys.publicKey);
+        } catch {
+            setState(prev => ({ ...prev, isLoading: false }));
+        }
+    }, [fetchBalance]);
+
     const connectFromKeys = useCallback(async (keys: WalletKeys) => {
         setState(prev => ({ ...prev, isLoading: true }));
 
@@ -163,6 +200,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setState({
             publicKey: keys.publicKey,
             address: addr,
+            mnemonic: null,
             balance: '0',
             isConnected: true,
             isLoading: false,
@@ -192,6 +230,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setState({
                 publicKey: result.publicKey,
                 address: addr,
+                mnemonic: null,
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
@@ -211,6 +250,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setState({
             publicKey: null,
             address: null,
+            mnemonic: null,
             balance: '0',
             isConnected: false,
             isLoading: false,
@@ -244,6 +284,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 connect,
                 connectExtension,
                 connectFromKeys,
+                connectFromMnemonic,
                 disconnect,
                 requestFaucet,
                 refreshBalance,

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
     Wallet as WalletIcon, Copy, Check, Droplets, Download, Upload,
     Coins, Image as ImageIcon, ArrowUpRight, ArrowDownLeft, RefreshCw,
-    Shield, LogOut, KeyRound, AlertCircle, Puzzle, Send,
+    Shield, LogOut, KeyRound, AlertCircle, Puzzle, Send, Eye, EyeOff, Settings,
 } from 'lucide-react';
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
@@ -36,7 +36,7 @@ interface TxRecord {
 /* ────────────────────────────────────────────────────────── */
 
 export default function WalletPage() {
-    const { isConnected, publicKey, address, balance, walletKeys, connect, connectExtension, connectFromKeys, extensionDetected, disconnect, requestFaucet, refreshBalance } = useWallet();
+    const { isConnected, publicKey, address, mnemonic, balance, walletKeys, connect, connectExtension, connectFromKeys, connectFromMnemonic, extensionDetected, disconnect, requestFaucet, refreshBalance } = useWallet();
     const rc = useRougeChain();
 
     const [copied, setCopied] = useState(false);
@@ -63,6 +63,15 @@ export default function WalletPage() {
     const [importPass, setImportPass] = useState('');
     const [showImportModal, setShowImportModal] = useState(false);
     const [keystoreError, setKeystoreError] = useState('');
+
+    // Seed phrase
+    const [showSeedReveal, setShowSeedReveal] = useState(false);
+    const [showSeedImportModal, setShowSeedImportModal] = useState(false);
+    const [seedInput, setSeedInput] = useState('');
+    const [seedError, setSeedError] = useState('');
+
+    // Settings modal
+    const [showSettings, setShowSettings] = useState(false);
 
     const copyKey = () => {
         if (!address && !publicKey) return;
@@ -233,16 +242,74 @@ export default function WalletPage() {
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
                         {extensionDetected && (
-                            <button className="btn btn-primary" onClick={connectExtension} style={{ gap: 8 }}>
-                                <Puzzle size={16} /> Connect Extension
+                            <button className="btn btn-primary" onClick={connectExtension}
+                                style={{ gap: 8, padding: '12px 28px', fontSize: '0.95rem' }}>
+                                <Puzzle size={18} /> Connect Extension
                             </button>
                         )}
-                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <button className="btn btn-secondary" onClick={connect}>
-                                <WalletIcon size={16} /> New Wallet
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                            gap: 12, maxWidth: 560, width: '100%',
+                        }}>
+                            <button id="btn-new-wallet" onClick={() => { connect(); }} style={{
+                                background: 'var(--surface)', border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius)', padding: '20px 16px',
+                                cursor: 'pointer', color: 'var(--fg)',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                                transition: 'all 0.2s',
+                            }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'rgba(168,85,247,0.06)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                            >
+                                <div style={{
+                                    width: 40, height: 40, borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, rgba(168,85,247,0.15), rgba(59,130,246,0.15))',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <WalletIcon size={18} style={{ color: '#a855f7' }} />
+                                </div>
+                                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>New Wallet</span>
+                                <span className="text-xs text-muted" style={{ textAlign: 'center', lineHeight: 1.3 }}>Generate fresh keys</span>
                             </button>
-                            <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
-                                <KeyRound size={16} /> Import Keystore
+                            <button id="btn-import-keystore" onClick={() => { setShowImportModal(true); }} style={{
+                                background: 'var(--surface)', border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius)', padding: '20px 16px',
+                                cursor: 'pointer', color: 'var(--fg)',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                                transition: 'all 0.2s',
+                            }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'rgba(168,85,247,0.06)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                            >
+                                <div style={{
+                                    width: 40, height: 40, borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(34,197,94,0.15))',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <Upload size={18} style={{ color: '#3b82f6' }} />
+                                </div>
+                                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Import Keystore</span>
+                                <span className="text-xs text-muted" style={{ textAlign: 'center', lineHeight: 1.3 }}>Restore from file</span>
+                            </button>
+                            <button id="btn-import-seed" onClick={() => { setShowSeedImportModal(true); }} style={{
+                                background: 'var(--surface)', border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius)', padding: '20px 16px',
+                                cursor: 'pointer', color: 'var(--fg)',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                                transition: 'all 0.2s',
+                            }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'rgba(168,85,247,0.06)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                            >
+                                <div style={{
+                                    width: 40, height: 40, borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, rgba(234,179,8,0.15), rgba(249,115,22,0.15))',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <KeyRound size={18} style={{ color: '#eab308' }} />
+                                </div>
+                                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Import from Seed</span>
+                                <span className="text-xs text-muted" style={{ textAlign: 'center', lineHeight: 1.3 }}>24-word phrase</span>
                             </button>
                         </div>
                         {!extensionDetected && (
@@ -350,6 +417,10 @@ export default function WalletPage() {
                             style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
                             <RefreshCw size={14} className={loading ? 'spin' : ''} />
                             Refresh
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => setShowSettings(true)}
+                            style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
+                            <Settings size={14} />
                         </button>
                     </div>
                 </div>
@@ -532,36 +603,113 @@ export default function WalletPage() {
                 )}
             </div>
 
-            {/* Key Management */}
-            <div style={{
-                marginTop: 32, padding: '20px 24px',
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
-            }}>
-                <h3 style={{ fontSize: '0.95rem', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Shield size={16} /> Key Management
-                </h3>
-                <p className="text-xs text-muted" style={{ marginBottom: 16, lineHeight: 1.5 }}>
-                    Your private key is stored in this browser session only. Export a keystore file to back up
-                    your wallet. You'll need the passphrase to restore it.
-                </p>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
-                        onClick={() => setShowExportModal(true)}>
-                        <Download size={14} /> Export Keystore
-                    </button>
-                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
-                        onClick={() => setShowImportModal(true)}>
-                        <Upload size={14} /> Import Keystore
-                    </button>
-                    <button className="btn btn-secondary" style={{
-                        fontSize: '0.8rem', padding: '8px 14px',
-                        color: '#f87171', borderColor: 'rgba(248,113,113,0.3)',
-                    }} onClick={disconnect}>
-                        <LogOut size={14} /> Disconnect
-                    </button>
+            {/* Settings Modal */}
+            {showSettings && (
+                <div className="sidebar-overlay" style={{
+                    zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={() => { setShowSettings(false); setShowSeedReveal(false); }}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: 'var(--bg)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-lg)', padding: 0, maxWidth: 520, width: '90%',
+                        boxShadow: '0 12px 48px rgba(0,0,0,0.4)',
+                        maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '20px 24px 16px', borderBottom: '1px solid var(--border)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        }}>
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                                <Settings size={18} /> Wallet Settings
+                            </h3>
+                            <button onClick={() => { setShowSettings(false); setShowSeedReveal(false); }}
+                                style={{ background: 'none', border: 'none', color: 'var(--fg-muted)', cursor: 'pointer', padding: 4 }}>
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Scrollable content */}
+                        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+
+                            {/* Keystore section */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h4 className="text-xs" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-muted)', marginBottom: 12 }}>Keystore Backup</h4>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                                        onClick={() => { setShowSettings(false); setShowExportModal(true); }}>
+                                        <Download size={14} /> Export Keystore
+                                    </button>
+                                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                                        onClick={() => { setShowSettings(false); setShowImportModal(true); }}>
+                                        <Upload size={14} /> Import Keystore
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Seed phrase section */}
+                            {mnemonic && (
+                                <div style={{ marginBottom: 24 }}>
+                                    <h4 className="text-xs" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-muted)', marginBottom: 12 }}>Seed Phrase</h4>
+                                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                                        onClick={() => setShowSeedReveal(!showSeedReveal)}>
+                                        {showSeedReveal ? <EyeOff size={14} /> : <Eye size={14} />}
+                                        {showSeedReveal ? 'Hide' : 'Reveal'} Seed Phrase
+                                    </button>
+                                    {showSeedReveal && (
+                                        <div style={{
+                                            marginTop: 12, padding: 16,
+                                            background: 'linear-gradient(135deg, rgba(168,85,247,0.06), rgba(59,130,246,0.04))',
+                                            border: '1px solid rgba(168,85,247,0.15)',
+                                            borderRadius: 'var(--radius)',
+                                        }}>
+                                            <p className="text-xs" style={{ color: '#f87171', marginBottom: 10, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <AlertCircle size={12} /> Never share your seed phrase. Anyone with these words can steal your wallet.
+                                            </p>
+                                            <div style={{
+                                                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                                                gap: 6,
+                                            }}>
+                                                {mnemonic.split(' ').map((word, i) => (
+                                                    <div key={i} style={{
+                                                        padding: '6px 10px', background: 'var(--surface)',
+                                                        borderRadius: 6, border: '1px solid var(--border)',
+                                                        fontFamily: 'monospace', fontSize: '0.75rem',
+                                                        display: 'flex', alignItems: 'center', gap: 4,
+                                                    }}>
+                                                        <span style={{ color: 'var(--fg-muted)', fontSize: '0.65rem', minWidth: 18, textAlign: 'right' }}>{i + 1}.</span>
+                                                        <span style={{ fontWeight: 600 }}>{word}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <button className="btn btn-secondary" style={{
+                                                marginTop: 10, fontSize: '0.75rem', padding: '6px 12px',
+                                            }} onClick={() => navigator.clipboard.writeText(mnemonic)}>
+                                                <Copy size={12} /> Copy All Words
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Danger zone */}
+                            <div style={{
+                                paddingTop: 16, borderTop: '1px solid var(--border)',
+                            }}>
+                                <h4 className="text-xs" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: '#f87171', marginBottom: 12 }}>Danger Zone</h4>
+                                <button className="btn btn-secondary" style={{
+                                    fontSize: '0.8rem', padding: '8px 14px',
+                                    color: '#f87171', borderColor: 'rgba(248,113,113,0.3)',
+                                }} onClick={() => { setShowSettings(false); disconnect(); }}>
+                                    <LogOut size={14} /> Disconnect Wallet
+                                </button>
+                                <p className="text-xs text-muted" style={{ marginTop: 8, lineHeight: 1.4 }}>
+                                    This will clear your keys from this session. Make sure you've backed up your keystore or seed phrase first.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Export Keystore Modal */}
             {showExportModal && (
@@ -717,6 +865,66 @@ export default function WalletPage() {
                         <p className="text-xs text-muted" style={{ textAlign: 'center', marginTop: 8 }}>
                             Signed with ML-DSA-65 · Fee: ~0.5 XRGE
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Seed Phrase Import Modal */}
+            {showSeedImportModal && (
+                <div className="sidebar-overlay" style={{
+                    zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={() => setShowSeedImportModal(false)}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: 'var(--bg)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-lg)', padding: 24, maxWidth: 480, width: '90%',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    }}>
+                        <h3 style={{ marginBottom: 4 }}>Import from Seed Phrase</h3>
+                        <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+                            Enter your 24-word BIP-39 seed phrase to restore your wallet.
+                        </p>
+                        <div style={{ marginBottom: 12 }}>
+                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Seed Phrase</label>
+                            <textarea
+                                className="form-input"
+                                placeholder="Enter your 24 words separated by spaces..."
+                                value={seedInput}
+                                onChange={e => setSeedInput(e.target.value)}
+                                rows={3}
+                                style={{ fontFamily: 'monospace', fontSize: '0.75rem', resize: 'vertical' }}
+                            />
+                        </div>
+                        {seedError && (
+                            <p style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <AlertCircle size={12} /> {seedError}
+                            </p>
+                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn btn-primary" style={{ flex: 1 }}
+                                disabled={!seedInput.trim()}
+                                onClick={async () => {
+                                    setSeedError('');
+                                    const words = seedInput.trim().toLowerCase().split(/\s+/);
+                                    if (words.length !== 12 && words.length !== 24) {
+                                        setSeedError('Seed phrase must be 12 or 24 words');
+                                        return;
+                                    }
+                                    try {
+                                        await connectFromMnemonic(words.join(' '));
+                                        setShowSeedImportModal(false);
+                                        setSeedInput('');
+                                    } catch {
+                                        setSeedError('Invalid seed phrase — check your words');
+                                    }
+                                }}
+                            >
+                                Import Wallet
+                            </button>
+                            <button className="btn btn-secondary"
+                                onClick={() => { setShowSeedImportModal(false); setSeedError(''); }}>
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
