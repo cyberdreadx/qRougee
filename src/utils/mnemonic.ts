@@ -16,7 +16,7 @@ import { bytesToHex } from '@rougechain/sdk';
 
 const DOMAIN = new TextEncoder().encode('rougechain-ml-dsa-65-v1');
 
-export function generateMnemonic(strength: 128 | 256 = 128): string {
+export function generateMnemonic(strength: 128 | 256 = 256): string {
   return _gen(wordlist, strength);
 }
 
