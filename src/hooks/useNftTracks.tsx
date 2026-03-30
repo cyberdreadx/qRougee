@@ -5,6 +5,8 @@ import { MOCK_TRACKS, type Track } from '../data/mockData';
 
 interface NftTracksState {
     tracks: Track[];
+    allTracksUnfiltered: Track[];
+    hiddenTrackIds: Set<string>;
     collections: NftCollection[];
     isLoading: boolean;
     error: string | null;
@@ -30,6 +32,7 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         tokenId: `tok_${token.token_id}`,
         mintDate: token.minted_at ? new Date(token.minted_at).toISOString().split('T')[0] : '',
         owner: token.owner,
+        creator: token.creator || collection.creator,
         tokenSymbol: attrs.tokenSymbol || undefined,
         tokenSupply: Number(attrs.tokenSupply) || undefined,
         royaltySplit: attrs.royaltySplit || undefined,
@@ -54,7 +57,9 @@ function generateCover(tokenId: string | number): string {
 export function useNftTracks() {
     const rc = useRougeChain();
     const [state, setState] = useState<NftTracksState>({
-        tracks: MOCK_TRACKS, // Start with mock data as fallback
+        tracks: MOCK_TRACKS,
+        allTracksUnfiltered: MOCK_TRACKS,
+        hiddenTrackIds: new Set(),
         collections: [],
         isLoading: true,
         error: null,
@@ -73,24 +78,34 @@ export function useNftTracks() {
                     for (const token of tokens) {
                         allTracks.push(nftTokenToTrack(token, col));
                     }
-                } catch {
-                    // Skip collections we can't read
-                }
+                } catch { /* skip */ }
             }
 
-            // Merge: on-chain tracks first, then mock data as fallback
-            const merged = allTracks.length > 0
-                ? [...allTracks, ...MOCK_TRACKS]
+            // Fetch hidden track IDs from each unique creator
+            const creators = [...new Set(allTracks.map(t => t.creator).filter(Boolean))] as string[];
+            const hiddenIds = new Set<string>();
+            for (const creator of creators) {
+                try {
+                    const ids = await rc.social.getHiddenTracks(creator);
+                    ids.forEach(id => hiddenIds.add(id));
+                } catch { /* ignore */ }
+            }
+
+            const visibleTracks = allTracks.filter(t => !hiddenIds.has(t.id));
+
+            const merged = visibleTracks.length > 0
+                ? [...visibleTracks, ...MOCK_TRACKS]
                 : MOCK_TRACKS;
 
             setState({
                 tracks: merged,
+                allTracksUnfiltered: allTracks.length > 0 ? [...allTracks, ...MOCK_TRACKS] : MOCK_TRACKS,
+                hiddenTrackIds: hiddenIds,
                 collections,
                 isLoading: false,
                 error: null,
             });
         } catch {
-            // Chain unreachable — fall back to mock data
             setState(prev => ({
                 ...prev,
                 isLoading: false,

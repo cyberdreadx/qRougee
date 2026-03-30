@@ -93,6 +93,9 @@ declare module '@rougechain/sdk' {
             getUserPosts(pubkey: string, limit?: number, offset?: number): Promise<{ posts: SocialPost[]; total: number }>;
             getGlobalTimeline(limit?: number, offset?: number): Promise<SocialPost[]>;
             getFollowingFeed(wallet: WalletKeys, limit?: number, offset?: number): Promise<SocialPost[]>;
+
+            hideTrack(wallet: WalletKeys, trackId: string, hidden?: boolean): Promise<{ success: boolean; error?: string; hidden?: boolean }>;
+            getHiddenTracks(pubkey: string): Promise<string[]>;
         };
     }
 

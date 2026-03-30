@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { Play, ExternalLink, Users, Music, Shield, Clock, Coins, UserPlus, UserCheck } from 'lucide-react';
+import { Play, ExternalLink, Users, Music, Shield, Clock, Coins, UserPlus, UserCheck, EyeOff } from 'lucide-react';
 import { formatDuration } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
@@ -13,7 +13,7 @@ export default function ArtistProfile() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { play } = usePlayer();
-    const { tracks } = useNftTracks();
+    const { tracks, allTracksUnfiltered, hiddenTrackIds } = useNftTracks();
     const { walletKeys, isExtensionWallet } = useWallet();
     const rc = useRougeChain();
 
@@ -25,8 +25,10 @@ export default function ArtistProfile() {
     // id = artist name (URL-encoded)
     const artistName = decodeURIComponent(id || '');
 
-    // Find all tracks by this artist
-    const artistTracks = tracks.filter(t => t.artist === artistName);
+    // Check if this is the current user's own profile by looking at both track sources
+    const allArtistTracks = allTracksUnfiltered.filter(t => t.artist === artistName);
+    const isOwnProfile = !!(walletKeys && allArtistTracks.some(t => t.creator === walletKeys.publicKey));
+    const artistTracks = isOwnProfile ? allArtistTracks : tracks.filter(t => t.artist === artistName);
 
     if (artistTracks.length === 0) {
         return (
@@ -181,11 +183,22 @@ export default function ArtistProfile() {
                         >
                             <span className="track-list-num">{idx + 1}</span>
                             <div className="track-list-info">
-                                <div className="track-list-thumb">
+                                <div className="track-list-thumb" style={hiddenTrackIds.has(track.id) ? { opacity: 0.4 } : undefined}>
                                     <img src={track.coverUrl} alt={track.title} />
                                 </div>
                                 <div>
-                                    <div className="track-list-name">{track.title}</div>
+                                    <div className="track-list-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        {track.title}
+                                        {hiddenTrackIds.has(track.id) && (
+                                            <span style={{
+                                                fontSize: '0.65rem', padding: '1px 6px',
+                                                background: 'rgba(234,179,8,0.15)', color: '#eab308',
+                                                borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 3,
+                                            }}>
+                                                <EyeOff size={10} /> Hidden
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="track-list-artist-name">{track.genre}</div>
                                 </div>
                             </div>

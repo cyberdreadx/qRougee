@@ -18,6 +18,7 @@ export interface Track {
   tokenId?: string;
   mintDate?: string;
   owner?: string;
+  creator?: string;
   tokenSymbol?: string;
   tokenSupply?: number;
   royaltySplit?: RoyaltySplit;

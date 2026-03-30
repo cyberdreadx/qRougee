@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { Play, Pause, ArrowLeft, Coins, Shield, Lock, ExternalLink, Heart, MessageCircle, Send, Trash2, Loader } from 'lucide-react';
+import { Play, Pause, ArrowLeft, Coins, Shield, Lock, ExternalLink, Heart, MessageCircle, Send, Trash2, Loader, EyeOff, Eye, Flame } from 'lucide-react';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { useWallet } from '../hooks/useWallet';
@@ -34,6 +34,12 @@ export default function TrackDetail() {
     const [tipLoading, setTipLoading] = useState(false);
     const [tipResult, setTipResult] = useState<string | null>(null);
 
+    // Creator controls
+    const [isHidden, setIsHidden] = useState(false);
+    const [hideLoading, setHideLoading] = useState(false);
+    const [burnConfirmOpen, setBurnConfirmOpen] = useState(false);
+    const [burnLoading, setBurnLoading] = useState(false);
+
     const loadSocial = useCallback(async () => {
         if (!id) return;
         try {
@@ -47,6 +53,43 @@ export default function TrackDetail() {
     }, [id, walletKeys?.publicKey, rc]);
 
     useEffect(() => { loadSocial(); }, [loadSocial]);
+
+    const isCreator = !!(walletKeys && track?.creator && walletKeys.publicKey === track.creator);
+
+    useEffect(() => {
+        if (!isCreator || !walletKeys || !id) return;
+        rc.social.getHiddenTracks(walletKeys.publicKey).then(ids => {
+            setIsHidden(ids.includes(id));
+        }).catch(() => {});
+    }, [isCreator, walletKeys, id, rc]);
+
+    const handleToggleHide = async () => {
+        if (!walletKeys || !id || hideLoading) return;
+        setHideLoading(true);
+        try {
+            const res = isExtensionWallet
+                ? await ext.socialHideTrack(walletKeys.publicKey, id, !isHidden)
+                : await rc.social.hideTrack(walletKeys, id, !isHidden);
+            if (res.success) setIsHidden(!isHidden);
+        } catch { /* ignore */ }
+        setHideLoading(false);
+    };
+
+    const handleBurn = async () => {
+        if (!walletKeys || !track?.collectionId || !track?.tokenId) return;
+        setBurnLoading(true);
+        try {
+            const tokenIdNum = track.tokenId.replace('tok_', '');
+            const res = isExtensionWallet
+                ? await ext.nftBurn(walletKeys.publicKey, track.collectionId, tokenIdNum)
+                : await rc.nft.burn(walletKeys, { collectionId: track.collectionId, tokenId: tokenIdNum });
+            if (res.success) {
+                navigate('/');
+            }
+        } catch { /* ignore */ }
+        setBurnLoading(false);
+        setBurnConfirmOpen(false);
+    };
 
     const handleLike = async () => {
         if (!walletKeys || !id || likeLoading) return;
@@ -174,6 +217,69 @@ export default function TrackDetail() {
                             </Link>
                         )}
                     </div>
+
+                    {/* Creator Controls */}
+                    {isCreator && (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                            <button
+                                className="btn btn-secondary"
+                                style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                                onClick={handleToggleHide}
+                                disabled={hideLoading}
+                            >
+                                {hideLoading ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : isHidden ? <Eye size={14} /> : <EyeOff size={14} />}
+                                {isHidden ? 'Unhide' : 'Hide from App'}
+                            </button>
+                            <button
+                                className="btn btn-secondary"
+                                style={{ padding: '6px 14px', fontSize: '0.8rem', color: '#dc2626', borderColor: '#dc262640' }}
+                                onClick={() => setBurnConfirmOpen(true)}
+                            >
+                                <Flame size={14} /> Burn NFT
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Burn confirmation dialog */}
+                    {burnConfirmOpen && (
+                        <div style={{
+                            marginTop: 12, padding: 16,
+                            border: '1px solid #dc262680', borderRadius: 'var(--radius)',
+                            background: 'rgba(220,38,38,0.05)',
+                        }}>
+                            <p style={{ margin: '0 0 12px', fontWeight: 600, color: '#dc2626' }}>
+                                Permanently burn this NFT?
+                            </p>
+                            <p className="text-sm text-muted" style={{ margin: '0 0 12px' }}>
+                                This action is <strong>irreversible</strong>. The NFT will be deleted from the chain forever.
+                            </p>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn btn-secondary" onClick={() => setBurnConfirmOpen(false)}>
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn btn-primary"
+                                    style={{ background: '#dc2626', borderColor: '#dc2626' }}
+                                    onClick={handleBurn}
+                                    disabled={burnLoading}
+                                >
+                                    {burnLoading ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Flame size={14} />}
+                                    Yes, Burn Forever
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {isHidden && (
+                        <div style={{
+                            marginTop: 12, padding: '8px 14px',
+                            background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)',
+                            borderRadius: 'var(--radius)', fontSize: '0.8125rem', color: '#eab308',
+                            display: 'flex', alignItems: 'center', gap: 6,
+                        }}>
+                            <EyeOff size={14} /> This track is hidden from the public feed
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -255,3 +255,16 @@ export async function socialDeletePost(publicKey: string, postId: string): Promi
     const payload: Payload = { from: publicKey, postId, timestamp: Date.now(), nonce: generateNonce() };
     return signAndSubmit('/v2/social/post/delete', payload, publicKey);
 }
+
+export async function socialHideTrack(publicKey: string, trackId: string, hidden: boolean): Promise<ApiResult> {
+    const payload: Payload = { from: publicKey, trackId, hidden, timestamp: Date.now(), nonce: generateNonce() };
+    return signAndSubmit('/v2/social/hide-track', payload, publicKey);
+}
+
+export async function nftBurn(publicKey: string, collectionId: string, tokenId: string): Promise<ApiResult> {
+    const payload: Payload = {
+        type: 'nft_burn', from: publicKey, collectionId, tokenId, fee: 1,
+        timestamp: Date.now(), nonce: generateNonce(),
+    };
+    return signAndSubmit('/v2/nft/burn', payload, publicKey);
+}
