@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // The SDK dist imports @noble/hashes/sha2 without .js — alias both forms
+      '@rougechain/sdk': path.resolve(__dirname, 'lib/rougechain-sdk/dist/index.js'),
       '@noble/hashes/sha2': path.resolve(__dirname, 'node_modules/@noble/hashes/sha2.js'),
       '@noble/hashes/sha2.js': path.resolve(__dirname, 'node_modules/@noble/hashes/sha2.js'),
       '@noble/hashes/hkdf': path.resolve(__dirname, 'node_modules/@noble/hashes/hkdf.js'),
@@ -38,7 +38,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: [
-      '@rougechain/sdk',
       '@noble/hashes',
       '@noble/post-quantum',
       '@noble/curves',
