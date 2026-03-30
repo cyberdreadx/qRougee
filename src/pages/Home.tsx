@@ -1,16 +1,45 @@
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import TrackCard from '../components/TrackCard';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
+import { useRougeChain } from '../hooks/useRougeChain';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
+import type { Track } from '../data/mockData';
 
 export default function Home() {
     const { play } = usePlayer();
     const navigate = useNavigate();
     const { tracks, isLoading } = useNftTracks();
+    const rc = useRougeChain();
     const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 55, duration: 450, deps: [tracks.length] });
-    const trending = tracks.slice(0, 8);
-    const newReleases = tracks.slice(4, 10);
+
+    const [popular, setPopular] = useState<Track[]>([]);
+    const [popularLoaded, setPopularLoaded] = useState(false);
+
+    useEffect(() => {
+        if (tracks.length === 0) return;
+        let cancelled = false;
+        (async () => {
+            const scored: { track: Track; score: number }[] = [];
+            for (const t of tracks) {
+                try {
+                    const s = await rc.social.getTrackStats(t.id);
+                    scored.push({ track: t, score: (s.plays || 0) + (s.likes || 0) * 3 });
+                } catch {
+                    scored.push({ track: t, score: 0 });
+                }
+            }
+            if (cancelled) return;
+            scored.sort((a, b) => b.score - a.score);
+            setPopular(scored.map(s => s.track));
+            setPopularLoaded(true);
+        })();
+        return () => { cancelled = true; };
+    }, [tracks, rc]);
+
+    const trending = popularLoaded ? popular.slice(0, 8) : tracks.slice(0, 8);
+    const newReleases = tracks.slice(0, 6);
 
     // Derive unique artists from on-chain track data
     const artistMap = new Map<string, { name: string; coverUrl: string; trackCount: number }>();
@@ -44,9 +73,9 @@ export default function Home() {
                     >
                         Start Listening
                     </button>
-                    <a href="/upload" className="btn btn-secondary">
+                    <Link to="/upload" className="btn btn-secondary">
                         Mint a Track
-                    </a>
+                    </Link>
                 </div>
             </div>
 
@@ -74,10 +103,10 @@ export default function Home() {
             {trending.length > 0 && (
                 <div className="section anime-stagger-item">
                     <div className="section-header">
-                        <h2>Trending Tracks</h2>
-                        <a href="/search" className="section-link">
+                        <h2>{popularLoaded ? 'Popular Tracks' : 'Trending Tracks'}</h2>
+                        <Link to="/search" className="section-link">
                             See all →
-                        </a>
+                        </Link>
                     </div>
                     <div className="track-grid">
                         {trending.map(track => (
@@ -136,7 +165,7 @@ export default function Home() {
             {!isLoading && tracks.length === 0 && (
                 <div className="empty-state" style={{ paddingTop: 40 }}>
                     <p className="text-muted" style={{ marginBottom: 16 }}>No tracks on chain yet. Be the first!</p>
-                    <a href="/upload" className="btn btn-primary">Mint a Track</a>
+                    <Link to="/upload" className="btn btn-primary">Mint a Track</Link>
                 </div>
             )}
         </div>

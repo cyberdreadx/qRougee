@@ -58,6 +58,7 @@ interface PlayerContextType extends PlayerState {
     dismissGate: () => void;
     setTokenBalanceChecker: (checker: (wallet: string, symbol: string) => Promise<number>) => void;
     setWalletPublicKey: (key: string | null) => void;
+    setPlayRecorder: (recorder: (trackId: string) => void) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -67,6 +68,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const animRef = useRef<number>(0);
     const balanceCheckerRef = useRef<((wallet: string, symbol: string) => Promise<number>) | null>(null);
     const walletKeyRef = useRef<string | null>(null);
+    const playRecorderRef = useRef<((trackId: string) => void) | null>(null);
+    const recordedPlaysRef = useRef<Set<string>>(new Set());
 
     const [state, setState] = useState<PlayerState>({
         currentTrack: null,
@@ -216,6 +219,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         checkPlayGate(track).then(allowed => {
             if (!allowed) return; // Modal will show
 
+            // Record play on-chain (debounced: once per track per session)
+            if (playRecorderRef.current && !recordedPlaysRef.current.has(track.id)) {
+                recordedPlaysRef.current.add(track.id);
+                playRecorderRef.current(track.id);
+            }
+
             setState(prev => {
                 const newQueue = queue || prev.queue;
                 loadAndPlay(track, prev.volume);
@@ -323,6 +332,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         walletKeyRef.current = key;
     }, []);
 
+    const setPlayRecorder = useCallback(
+        (recorder: (trackId: string) => void) => {
+            playRecorderRef.current = recorder;
+        }, []
+    );
+
     return (
         <PlayerContext.Provider
             value={{
@@ -339,6 +354,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 dismissGate,
                 setTokenBalanceChecker,
                 setWalletPublicKey,
+                setPlayRecorder,
             }}
         >
             {children}

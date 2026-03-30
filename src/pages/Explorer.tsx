@@ -49,8 +49,6 @@ export default function Explorer() {
             try {
                 const txData = await rc.getTransactions({ limit: 30 });
                 const txList = extractArray(txData);
-                console.log('[Explorer] txs:', txList.length, 'raw keys:', txData && typeof txData === 'object' ? Object.keys(txData as Record<string, unknown>) : typeof txData);
-                if (txList.length > 0) console.log('[Explorer] tx[0] keys:', Object.keys(txList[0]), 'sample:', txList[0]);
                 setTxs(txList.map(item => {
                     // Structure: { txId, blockHeight, blockHash, blockTime, tx: { tx_type, from_pub_key, payload, signed_payload, ... } }
                     const inner = (item.tx || {}) as Record<string, unknown>;
@@ -79,13 +77,13 @@ export default function Explorer() {
                         fee: inner.fee ? Number(inner.fee) : undefined,
                     };
                 }));
-            } catch (e) { console.warn('[Explorer] txs failed:', e); setTxs([]); }
+            } catch { setTxs([]); }
 
 
             // Fetch tokens
             try {
                 const allTokens = await rc.getTokens();
-                setTokens((allTokens || []).map(t => t as unknown as Record<string, unknown>));
+                setTokens((allTokens || []).map((t: unknown) => t as Record<string, unknown>));
             } catch { setTokens([]); }
         } finally {
             setLoading(false);
@@ -146,7 +144,7 @@ export default function Explorer() {
                 </h1>
                 <div style={{ display: 'flex', gap: 8 }}>
                     <a
-                        href="https://rougechain.io/explorer"
+                        href="https://rougechain.io/blockchain"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn btn-secondary"

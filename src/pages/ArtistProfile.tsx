@@ -1,8 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, ExternalLink, Users, Music, Shield, Clock, Coins } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Play, ExternalLink, Users, Music, Shield, Clock, Coins, UserPlus, UserCheck } from 'lucide-react';
 import { formatDuration } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
+import { useWallet } from '../hooks/useWallet';
+import { useRougeChain } from '../hooks/useRougeChain';
+import * as ext from '../utils/extensionSigner';
 import TrackCard from '../components/TrackCard';
 
 export default function ArtistProfile() {
@@ -10,6 +14,13 @@ export default function ArtistProfile() {
     const navigate = useNavigate();
     const { play } = usePlayer();
     const { tracks } = useNftTracks();
+    const { walletKeys, isExtensionWallet } = useWallet();
+    const rc = useRougeChain();
+
+    const [followerCount, setFollowerCount] = useState(0);
+    const [_followingCount, setFollowingCount] = useState(0);
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [followLoading, setFollowLoading] = useState(false);
 
     // id = artist name (URL-encoded)
     const artistName = decodeURIComponent(id || '');
@@ -41,6 +52,33 @@ export default function ArtistProfile() {
     // Get the wallet/owner from the first track
     const walletAddress = artistTracks[0]?.owner || 'Unknown';
 
+    const loadArtistStats = useCallback(async () => {
+        if (!walletAddress || walletAddress === 'Unknown') return;
+        try {
+            const s = await rc.social.getArtistStats(walletAddress, walletKeys?.publicKey);
+            setFollowerCount(s.followers);
+            setFollowingCount(s.following);
+            setIsFollowing(s.isFollowing);
+        } catch { /* ignore */ }
+    }, [walletAddress, walletKeys?.publicKey, rc]);
+
+    useEffect(() => { loadArtistStats(); }, [loadArtistStats]);
+
+    const handleFollow = async () => {
+        if (!walletKeys || !walletAddress || walletAddress === 'Unknown' || followLoading) return;
+        setFollowLoading(true);
+        try {
+            const res = isExtensionWallet
+                ? await ext.socialToggleFollow(walletKeys.publicKey, walletAddress)
+                : await rc.social.toggleFollow(walletKeys, walletAddress);
+            if (res.success) {
+                setIsFollowing((res as any).following ?? !isFollowing);
+                setFollowerCount((res as any).followers ?? followerCount);
+            }
+        } catch { /* ignore */ }
+        setFollowLoading(false);
+    };
+
     const handlePlayAll = () => {
         if (artistTracks.length > 0) {
             play(artistTracks[0], artistTracks);
@@ -68,12 +106,24 @@ export default function ArtistProfile() {
                     <div className="artist-profile-meta">
                         <span><Music size={14} /> {artistTracks.length} track{artistTracks.length !== 1 ? 's' : ''}</span>
                         <span><Clock size={14} /> {formatDuration(totalDuration)} total</span>
-                        <span><Users size={14} /> {collections.size} collection{collections.size !== 1 ? 's' : ''}</span>
+                        <span><Users size={14} /> {followerCount} follower{followerCount !== 1 ? 's' : ''}</span>
+                        <span>{collections.size} collection{collections.size !== 1 ? 's' : ''}</span>
                     </div>
                     <div className="artist-profile-actions">
                         <button className="btn btn-primary" onClick={handlePlayAll}>
                             <Play size={16} /> Play All
                         </button>
+                        {walletKeys && walletAddress !== 'Unknown' && (
+                            <button
+                                className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
+                                onClick={handleFollow}
+                                disabled={followLoading}
+                                style={{ gap: 6 }}
+                            >
+                                {isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}
+                                {isFollowing ? 'Following' : 'Follow'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

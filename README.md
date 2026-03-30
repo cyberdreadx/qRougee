@@ -1,73 +1,81 @@
-# React + TypeScript + Vite
+# qRougee
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A decentralized music platform built on [RougeChain](https://rougechain.io) — mint tracks as NFTs, create song tokens, trade on the DEX, and stream with token-gated access.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Mint Tracks** — Upload audio + cover art to IPFS (Pinata), mint a 1-of-1 Master Rights NFT, and create a fungible song token in a single wizard flow
+- **Song Tokens** — Each track gets its own on-chain token with configurable supply, royalty splits, and play-gate thresholds
+- **DEX Trading** — Buy and sell song tokens against XRGE on RougeChain's AMM DEX with live price charts and pool creation
+- **Token-Gated Playback** — Free plays for discovery, unlimited streaming for token holders
+- **Wallet** — Create, import (keystore or 24-word seed phrase), or connect via the RougeChain Wallet browser extension
+- **Explorer** — Browse live on-chain transactions, NFT collections, and token listings
+- **PWA** — Installable progressive web app with offline caching
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer | Technology |
+|-------|------------|
+| Framework | React 19 + TypeScript |
+| Build | Vite 7 |
+| Routing | react-router-dom v7 |
+| Blockchain | `@rougechain/sdk` (v2 signed endpoints, ML-DSA-65) |
+| Crypto | `@noble/hashes`, `@scure/bip39` (BIP-39 mnemonics) |
+| Storage | IPFS via Pinata |
+| Animations | anime.js |
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+```bash
+# Clone
+git clone https://github.com/cyberdreadx/qRougee.git
+cd qRougee
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# Install dependencies
+npm install
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+# Configure environment
+cp .env.example .env
+# Add your Pinata JWT or API key/secret
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Start dev server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment Variables
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Variable | Description |
+|----------|-------------|
+| `VITE_PINATA_JWT` | Pinata JWT for IPFS uploads |
+| `VITE_PINATA_API_KEY` | Pinata API key (alternative to JWT) |
+| `VITE_PINATA_API_SECRET` | Pinata API secret (alternative to JWT) |
+| `VITE_PINATA_GATEWAY` | Pinata gateway URL (default: `https://gateway.pinata.cloud/ipfs`) |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Architecture
+
+All blockchain interactions go through `@rougechain/sdk`, which handles client-side ML-DSA-65 signing and communicates with the RougeChain testnet via v2 authenticated API endpoints. Private keys never leave the browser.
+
 ```
+User → React UI → @rougechain/sdk → RougeChain Testnet (v2 signed API)
+                → Pinata API → IPFS (audio, cover art, metadata)
+```
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Type-check + production build |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+
+## Security
+
+- All transactions are signed client-side with **ML-DSA-65** (CRYSTALS-Dilithium / FIPS 204)
+- Wallet keys are stored in `sessionStorage` (auto-cleared on tab close)
+- No private keys are transmitted to any server
+- All write API calls use v2 signed request envelopes with timestamp and nonce validation
+
+## License
+
+MIT

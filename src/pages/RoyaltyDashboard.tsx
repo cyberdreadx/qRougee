@@ -1,23 +1,64 @@
+import { useState, useEffect, useCallback } from 'react';
 import { Coins, TrendingUp, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
+import { useRougeChain } from '../hooks/useRougeChain';
 import { useNftTracks } from '../hooks/useNftTracks';
-import { MOCK_TRACKS, formatDuration } from '../data/mockData';
+import { formatDuration } from '../data/mockData';
+import type { NftToken } from '@rougechain/sdk';
 
 export default function RoyaltyDashboard() {
-    const { isConnected, connect, publicKey } = useWallet();
-    const { tracks: nftTracks } = useNftTracks();
+    const { isConnected, connect, publicKey, walletKeys } = useWallet();
+    const { tracks: nftTracks, collections } = useNftTracks();
+    const rc = useRougeChain();
+    const [ownedTracks, setOwnedTracks] = useState(nftTracks.filter(() => false));
+    const [trackStats, setTrackStats] = useState<Record<string, { plays: number; likes: number }>>({});
 
-    const allTracks = [...MOCK_TRACKS, ...nftTracks];
+    const fetchOwned = useCallback(async () => {
+        if (!walletKeys?.publicKey) return;
+        try {
+            const tokens = await rc.nft.getByOwner(walletKeys.publicKey);
+            const mapped = (tokens || []).map((t: NftToken) => {
+                const attrs = (t.attributes || {}) as Record<string, string>;
+                const col = collections.find(c => c.collection_id === t.collection_id);
+                return {
+                    id: `${t.collection_id}_${t.token_id}`,
+                    title: t.name || 'Untitled',
+                    artist: attrs.artist || (t.creator || '').slice(0, 8) + '...',
+                    album: col?.name || '',
+                    duration: parseInt(attrs.duration || '0', 10) || 210,
+                    coverUrl: attrs.coverUrl || col?.image || '',
+                    audioUrl: attrs.audioUrl || '',
+                    genre: attrs.genre || '',
+                    collectionId: t.collection_id,
+                    tokenId: `tok_${t.token_id}`,
+                    tokenSymbol: attrs.tokenSymbol || '',
+                    mintDate: t.minted_at ? new Date(t.minted_at).toISOString().split('T')[0] : '',
+                    owner: t.owner,
+                };
+            });
+            setOwnedTracks(mapped);
+            const stats: Record<string, { plays: number; likes: number }> = {};
+            for (const track of mapped) {
+                try {
+                    const s = await rc.social.getTrackStats(track.id);
+                    stats[track.id] = { plays: s.plays || 0, likes: s.likes || 0 };
+                } catch {
+                    stats[track.id] = { plays: 0, likes: 0 };
+                }
+            }
+            setTrackStats(stats);
+        } catch {
+            setOwnedTracks([]);
+        }
+    }, [walletKeys, rc, collections]);
 
-    // Tracks where connected wallet is the owner (simulated)
-    const ownedTracks = isConnected
-        ? allTracks.filter(t => t.owner && t.tokenSymbol)
-        : [];
+    useEffect(() => {
+        if (isConnected) fetchOwned();
+    }, [isConnected, fetchOwned]);
 
-    // Simulated royalty data for demonstration
-    const totalEarnings = ownedTracks.length * 127.45;
-    const pendingPayout = ownedTracks.length * 23.80;
+    const totalPlays = Object.values(trackStats).reduce((sum, s) => sum + s.plays, 0);
+    const totalLikes = Object.values(trackStats).reduce((sum, s) => sum + s.likes, 0);
 
     if (!isConnected) {
         return (
@@ -45,24 +86,24 @@ export default function RoyaltyDashboard() {
             <div className="royalty-stats">
                 <div className="royalty-stat-card">
                     <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Total Earned
+                        Total Plays
                     </div>
-                    <div className="royalty-stat-value">${totalEarnings.toFixed(2)}</div>
-                    <div className="text-xs text-muted">USDC equivalent</div>
+                    <div className="royalty-stat-value">{totalPlays.toLocaleString()}</div>
+                    <div className="text-xs text-muted">Across all tracks</div>
                 </div>
                 <div className="royalty-stat-card">
                     <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Pending Payout
+                        Total Likes
                     </div>
-                    <div className="royalty-stat-value">${pendingPayout.toFixed(2)}</div>
-                    <div className="text-xs text-muted">Next distribution cycle</div>
+                    <div className="royalty-stat-value">{totalLikes.toLocaleString()}</div>
+                    <div className="text-xs text-muted">Community engagement</div>
                 </div>
                 <div className="royalty-stat-card">
                     <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Active Tracks
+                        Your Tracks
                     </div>
                     <div className="royalty-stat-value">{ownedTracks.length}</div>
-                    <div className="text-xs text-muted">Generating revenue</div>
+                    <div className="text-xs text-muted">NFTs you own</div>
                 </div>
             </div>
 
@@ -82,19 +123,17 @@ export default function RoyaltyDashboard() {
                     </div>
                 ) : (
                     <div className="track-list">
-                        <div className="track-list-header" style={{ gridTemplateColumns: '1fr 120px 120px 100px 40px' }}>
+                        <div className="track-list-header" style={{ gridTemplateColumns: '1fr 100px 100px 40px' }}>
                             <span>Track</span>
-                            <span>Token</span>
-                            <span>Earned</span>
-                            <span>Pending</span>
+                            <span>Plays</span>
+                            <span>Likes</span>
                             <span></span>
                         </div>
                         {ownedTracks.map(track => {
-                            const earned = (127.45 + Math.random() * 200).toFixed(2);
-                            const pending = (23.80 + Math.random() * 50).toFixed(2);
+                            const stats = trackStats[track.id] || { plays: 0, likes: 0 };
                             return (
                                 <div key={track.id} className="track-list-item"
-                                    style={{ gridTemplateColumns: '1fr 120px 120px 100px 40px' }}>
+                                    style={{ gridTemplateColumns: '1fr 100px 100px 40px' }}>
                                     <div className="track-list-info">
                                         <div className="track-list-thumb">
                                             <img src={track.coverUrl} alt={track.title} />
@@ -106,9 +145,8 @@ export default function RoyaltyDashboard() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="text-sm" style={{ fontWeight: 500 }}>{track.tokenSymbol}</div>
-                                    <div className="text-sm" style={{ color: '#4ade80' }}>${earned}</div>
-                                    <div className="text-sm text-muted">${pending}</div>
+                                    <div className="text-sm" style={{ fontWeight: 500 }}>{stats.plays.toLocaleString()}</div>
+                                    <div className="text-sm" style={{ fontWeight: 500 }}>{stats.likes.toLocaleString()}</div>
                                     <Link to={`/track/${track.id}`}>
                                         <ArrowRight size={14} />
                                     </Link>
@@ -124,16 +162,16 @@ export default function RoyaltyDashboard() {
                 <div className="chain-info">
                     <div className="chain-info-title">Distribution Details</div>
                     <div className="chain-info-row">
-                        <span className="chain-info-label">Payout Currency</span>
-                        <span className="chain-info-value">USDC (converted from XRGE)</span>
+                        <span className="chain-info-label">Tracking</span>
+                        <span className="chain-info-value">Plays & likes recorded on-chain</span>
                     </div>
                     <div className="chain-info-row">
-                        <span className="chain-info-label">Distribution</span>
-                        <span className="chain-info-value">Manual via rc.transfer</span>
+                        <span className="chain-info-label">Ownership</span>
+                        <span className="chain-info-value">RC-721 NFT on RougeChain</span>
                     </div>
                     <div className="chain-info-row">
                         <span className="chain-info-label">Revenue Sources</span>
-                        <span className="chain-info-value">Rougee streams · External DSPs · Token sales</span>
+                        <span className="chain-info-value">qRougee streams · Token sales · Tips</span>
                     </div>
                     <div className="chain-info-row">
                         <span className="chain-info-label">Split Model</span>

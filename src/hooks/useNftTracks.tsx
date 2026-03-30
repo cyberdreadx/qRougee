@@ -20,7 +20,7 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
     return {
         id: `${token.collection_id}_${token.token_id}`,
         title: token.name || 'Untitled',
-        artist: attrs.artist || truncateCreator(token.creator),
+        artist: attrs.artist || truncateCreator(token.creator || ''),
         album: collection.name || 'Unknown Collection',
         duration: parseInt(attrs.duration || '0', 10) || 210,
         coverUrl: attrs.coverUrl || collection.image || generateCover(token.token_id),
@@ -28,8 +28,8 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         genre: attrs.genre || 'Unknown',
         collectionId: token.collection_id,
         tokenId: `tok_${token.token_id}`,
-        mintDate: new Date(token.minted_at).toISOString().split('T')[0],
-        owner: truncateCreator(token.owner),
+        mintDate: token.minted_at ? new Date(token.minted_at).toISOString().split('T')[0] : '',
+        owner: token.owner,
         tokenSymbol: attrs.tokenSymbol || undefined,
         tokenSupply: Number(attrs.tokenSupply) || undefined,
         royaltySplit: attrs.royaltySplit || undefined,
@@ -43,10 +43,11 @@ function truncateCreator(key: string): string {
     return key.slice(0, 8) + '...' + key.slice(-6);
 }
 
-function generateCover(tokenId: number): string {
-    const hue = (tokenId * 37) % 360;
+function generateCover(tokenId: string | number): string {
+    const id = typeof tokenId === 'string' ? parseInt(tokenId, 10) || 0 : tokenId;
+    const hue = (id * 37) % 360;
     return `data:image/svg+xml,${encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="hsl(${hue},0%,${12 + (tokenId % 20)}%)"/><text x="200" y="210" text-anchor="middle" fill="hsl(0,0%,${60 + (tokenId % 30)}%)" font-family="sans-serif" font-size="48">${['♪', '♫', '♬', '♩'][tokenId % 4]}</text></svg>`
+        `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="hsl(${hue},0%,${12 + (id % 20)}%)"/><text x="200" y="210" text-anchor="middle" fill="hsl(0,0%,${60 + (id % 30)}%)" font-family="sans-serif" font-size="48">${['♪', '♫', '♬', '♩'][id % 4]}</text></svg>`
     )}`;
 }
 

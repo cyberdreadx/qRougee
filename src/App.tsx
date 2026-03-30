@@ -7,6 +7,7 @@ import { ThemeProvider } from './hooks/useTheme';
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
 import MobileHeader from './components/MobileHeader';
+import MobileNav from './components/MobileNav';
 import PlayGateConnector from './components/PlayGateConnector';
 import Home from './pages/Home';
 import SearchPage from './pages/Search';
@@ -46,6 +47,7 @@ export default function App() {
                     </Routes>
                   </div>
                   <PlayerBar />
+                  <MobileNav />
                   <PlayGateConnector />
                 </div>
               </div>

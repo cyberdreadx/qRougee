@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Library as LibraryIcon, Wallet, Heart, Music, Droplets, Download, Upload, Loader } from 'lucide-react';
+import { Library as LibraryIcon, Wallet, Heart, Music, Droplets, Download, Upload, Loader, ThumbsUp } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 import { usePlayer } from '../hooks/usePlayer';
 import { useRougeChain } from '../hooks/useRougeChain';
@@ -15,7 +15,7 @@ function nftToTrack(token: NftToken, collections: NftCollection[]): Track {
     return {
         id: `${token.collection_id}_${token.token_id}`,
         title: token.name || 'Untitled',
-        artist: attrs.artist || token.creator.slice(0, 8) + '...',
+        artist: attrs.artist || (token.creator || '').slice(0, 8) + '...',
         album: col?.name || 'Unknown Collection',
         duration: parseInt(attrs.duration || '0', 10) || 210,
         coverUrl: attrs.coverUrl || col?.image || '',
@@ -23,19 +23,21 @@ function nftToTrack(token: NftToken, collections: NftCollection[]): Track {
         genre: attrs.genre || 'Unknown',
         collectionId: token.collection_id,
         tokenId: `tok_${token.token_id}`,
-        mintDate: new Date(token.minted_at).toISOString().split('T')[0],
+        mintDate: token.minted_at ? new Date(token.minted_at).toISOString().split('T')[0] : '',
         owner: token.owner.slice(0, 8) + '...' + token.owner.slice(-6),
     };
 }
 
 export default function LibraryPage() {
-    const { isConnected, publicKey, balance, connect, connectFromKeys, walletKeys, requestFaucet, isLoading } = useWallet();
+    const { isConnected, publicKey, address, balance, connect, connectFromKeys, connectExtension, extensionDetected, isExtensionWallet, walletKeys, requestFaucet, isLoading } = useWallet();
     const { play } = usePlayer();
     const rc = useRougeChain();
     const { collections } = useNftTracks();
-    const [activeTab, setActiveTab] = useState<'owned' | 'all'>('owned');
+    const [activeTab, setActiveTab] = useState<'owned' | 'liked' | 'all'>('owned');
     const [ownedTracks, setOwnedTracks] = useState<Track[]>([]);
+    const [likedTracks, setLikedTracks] = useState<Track[]>([]);
     const [loadingOwned, setLoadingOwned] = useState(false);
+    const [loadingLiked, setLoadingLiked] = useState(false);
     const { tracks: allTracks } = useNftTracks();
 
     // Keystore state
@@ -50,20 +52,34 @@ export default function LibraryPage() {
         setLoadingOwned(true);
         try {
             const tokens = await rc.nft.getByOwner(walletKeys.publicKey);
-            setOwnedTracks(tokens.map(t => nftToTrack(t, collections)));
+            setOwnedTracks(tokens.map((t: NftToken) => nftToTrack(t, collections)));
         } catch {
             setOwnedTracks([]);
         }
         setLoadingOwned(false);
     }, [walletKeys, rc, collections]);
 
+    const fetchLiked = useCallback(async () => {
+        if (!walletKeys?.publicKey) return;
+        setLoadingLiked(true);
+        try {
+            const trackIds = await rc.social.getUserLikes(walletKeys.publicKey);
+            const matched = allTracks.filter(t => trackIds.includes(t.id));
+            setLikedTracks(matched);
+        } catch {
+            setLikedTracks([]);
+        }
+        setLoadingLiked(false);
+    }, [walletKeys, rc, allTracks]);
+
     useEffect(() => {
         if (isConnected && walletKeys) {
             fetchOwned();
+            fetchLiked();
         }
-    }, [isConnected, walletKeys, fetchOwned]);
+    }, [isConnected, walletKeys, fetchOwned, fetchLiked]);
 
-    const displayTracks = activeTab === 'owned' ? ownedTracks : allTracks;
+    const displayTracks = activeTab === 'owned' ? ownedTracks : activeTab === 'liked' ? likedTracks : allTracks;
 
     const handleExportKeystore = async () => {
         if (!walletKeys || !passphrase) return;
@@ -101,8 +117,13 @@ export default function LibraryPage() {
                         Connect to view your NFT track collection, or import an existing keystore.
                     </p>
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <button className="btn btn-primary" onClick={connect}>
-                            Create New Wallet
+                        {extensionDetected && (
+                            <button className="btn btn-primary" onClick={connectExtension}>
+                                Connect Wallet
+                            </button>
+                        )}
+                        <button className="btn btn-secondary" onClick={connect}>
+                            New Wallet
                         </button>
                         <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
                             <Upload size={14} />
@@ -135,13 +156,13 @@ export default function LibraryPage() {
             {keystoreSuccess && (
                 <div style={{
                     padding: '10px 16px', marginBottom: 16,
-                    background: '#f0fdf4', border: '1px solid #bbf7d0',
-                    borderRadius: 'var(--radius)', color: '#166534',
+                    background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)',
+                    borderRadius: 'var(--radius)', color: '#4ade80',
                     fontSize: '0.875rem',
                 }}>
                     {keystoreSuccess}
                     <button
-                        style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#166534' }}
+                        style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#4ade80' }}
                         onClick={() => setKeystoreSuccess(null)}
                     >
                         ×
@@ -164,7 +185,7 @@ export default function LibraryPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Wallet size={16} style={{ color: 'var(--muted)' }} />
                     <span className="text-sm" style={{ fontFamily: 'monospace' }}>
-                        {publicKey?.slice(0, 10)}...{publicKey?.slice(-6)}
+                        {address ? `${address.slice(0, 14)}...${address.slice(-6)}` : `${publicKey?.slice(0, 10)}...${publicKey?.slice(-6)}`}
                     </span>
                 </div>
                 <div className="badge">{balance} XRGE</div>
@@ -177,14 +198,16 @@ export default function LibraryPage() {
                     <Droplets size={12} />
                     {isLoading ? 'Requesting...' : 'Faucet'}
                 </button>
-                <button
-                    className="btn btn-secondary"
-                    style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-                    onClick={() => setShowExport(!showExport)}
-                >
-                    <Download size={12} />
-                    Export Keystore
-                </button>
+                {!isExtensionWallet && (
+                    <button
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 14px', fontSize: '0.75rem' }}
+                        onClick={() => setShowExport(!showExport)}
+                    >
+                        <Download size={12} />
+                        Export Keystore
+                    </button>
+                )}
             </div>
 
             {/* Keystore Export */}
@@ -234,6 +257,13 @@ export default function LibraryPage() {
                     Owned NFTs ({loadingOwned ? '...' : ownedTracks.length})
                 </button>
                 <button
+                    className={`tab${activeTab === 'liked' ? ' active' : ''}`}
+                    onClick={() => setActiveTab('liked')}
+                >
+                    <ThumbsUp size={14} style={{ marginRight: 6, verticalAlign: -2 }} />
+                    Liked ({loadingLiked ? '...' : likedTracks.length})
+                </button>
+                <button
                     className={`tab${activeTab === 'all' ? ' active' : ''}`}
                     onClick={() => setActiveTab('all')}
                 >
@@ -243,16 +273,16 @@ export default function LibraryPage() {
             </div>
 
             {/* Track List */}
-            {loadingOwned && activeTab === 'owned' ? (
+            {(loadingOwned && activeTab === 'owned') || (loadingLiked && activeTab === 'liked') ? (
                 <div className="empty-state" style={{ paddingTop: 60 }}>
                     <Loader size={24} style={{ animation: 'spin 1s linear infinite' }} />
-                    <p>Loading your NFTs from RougeChain...</p>
+                    <p>{activeTab === 'liked' ? 'Loading liked tracks...' : 'Loading your NFTs from RougeChain...'}</p>
                 </div>
             ) : displayTracks.length === 0 ? (
                 <div className="empty-state" style={{ paddingTop: 60 }}>
                     <Music size={32} />
                     <h3>No tracks found</h3>
-                    <p>{activeTab === 'owned' ? 'Mint your first track to see it here!' : 'No tracks available yet.'}</p>
+                    <p>{activeTab === 'owned' ? 'Mint your first track to see it here!' : activeTab === 'liked' ? 'Like tracks to build your collection!' : 'No tracks available yet.'}</p>
                 </div>
             ) : (
                 <div className="track-list">

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { usePlayer } from '../hooks/usePlayer';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
+import * as ext from '../utils/extensionSigner';
 import PlayGateModal from './PlayGateModal';
 
 /**
@@ -9,8 +10,8 @@ import PlayGateModal from './PlayGateModal';
  * Must be rendered inside PlayerProvider, WalletProvider, and RougeChainProvider.
  */
 export default function PlayGateConnector() {
-    const { gatedTrack, dismissGate, setTokenBalanceChecker, setWalletPublicKey } = usePlayer();
-    const { publicKey } = useWallet();
+    const { gatedTrack, dismissGate, setTokenBalanceChecker, setWalletPublicKey, setPlayRecorder } = usePlayer();
+    const { publicKey, walletKeys, isExtensionWallet } = useWallet();
     const rc = useRougeChain();
 
     // Inject wallet public key into player
@@ -29,6 +30,17 @@ export default function PlayGateConnector() {
             }
         });
     }, [rc, setTokenBalanceChecker]);
+
+    useEffect(() => {
+        if (!walletKeys) return;
+        setPlayRecorder((trackId: string) => {
+            if (isExtensionWallet) {
+                ext.socialRecordPlay(walletKeys.publicKey, trackId).catch(() => {});
+            } else {
+                rc.social.recordPlay(walletKeys, trackId).catch(() => {});
+            }
+        });
+    }, [rc, walletKeys, isExtensionWallet, setPlayRecorder]);
 
     // Render gate modal if needed
     if (!gatedTrack) return null;

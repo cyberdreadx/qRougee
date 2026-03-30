@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Search, Library, Upload, Wallet, X, KeyRound, ArrowLeftRight, TrendingUp, Sun, Moon, Compass } from 'lucide-react';
+import { Home, Search, Library, Upload, Wallet, X, ArrowLeftRight, TrendingUp, Sun, Moon, Compass } from 'lucide-react';
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useSidebar } from '../hooks/useSidebar';
 import { useTheme } from '../hooks/useTheme';
 
 export default function Sidebar() {
-    const { isConnected, publicKey, address, isLoading, connect, connectFromKeys } = useWallet();
+    const { isConnected, publicKey, address, isLoading, connectExtension, connectFromKeys, extensionDetected } = useWallet();
     const { isOpen, close } = useSidebar();
     const { theme, toggleTheme } = useTheme();
     const location = useLocation();
@@ -146,28 +146,27 @@ export default function Sidebar() {
                         </NavLink>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <button
-                                className="wallet-btn"
-                                onClick={connect}
-                                disabled={isLoading}
-                            >
-                                <span className="wallet-dot" />
-                                <span style={{ flex: 1, textAlign: 'left' }}>
-                                    {isLoading ? 'Connecting...' : 'New Wallet'}
-                                </span>
-                                <Wallet size={14} />
-                            </button>
-                            <button
-                                className="wallet-btn"
-                                onClick={() => setShowImport(true)}
-                                disabled={isLoading}
-                                style={{ fontSize: '0.75rem' }}
-                            >
-                                <KeyRound size={14} />
-                                <span style={{ flex: 1, textAlign: 'left' }}>
-                                    Import Existing
-                                </span>
-                            </button>
+                            {extensionDetected ? (
+                                <button
+                                    className="wallet-btn"
+                                    onClick={connectExtension}
+                                    disabled={isLoading}
+                                >
+                                    <span className="wallet-dot" />
+                                    <span style={{ flex: 1, textAlign: 'left' }}>
+                                        {isLoading ? 'Connecting...' : 'Connect Wallet'}
+                                    </span>
+                                    <Wallet size={14} />
+                                </button>
+                            ) : (
+                                <NavLink to="/wallet" className="wallet-btn" style={{ textDecoration: 'none' }}>
+                                    <span className="wallet-dot" />
+                                    <span style={{ flex: 1, textAlign: 'left' }}>
+                                        Connect Wallet
+                                    </span>
+                                    <Wallet size={14} />
+                                </NavLink>
+                            )}
                         </div>
                     )}
                 </div>

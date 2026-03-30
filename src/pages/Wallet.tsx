@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import {
     Wallet as WalletIcon, Copy, Check, Droplets, Download, Upload,
     Coins, Image as ImageIcon, ArrowUpRight, ArrowDownLeft, RefreshCw,
-    Shield, LogOut, KeyRound, AlertCircle, Puzzle, Send, Eye, EyeOff, Settings,
+    LogOut, KeyRound, AlertCircle, Puzzle, Send, Eye, EyeOff, Settings,
 } from 'lucide-react';
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { exportKeystore, importKeystore } from '../hooks/useKeystore';
+import * as ext from '../utils/extensionSigner';
 
 /* ────────────────────────────────────────────────────────── */
 
@@ -36,7 +37,7 @@ interface TxRecord {
 /* ────────────────────────────────────────────────────────── */
 
 export default function WalletPage() {
-    const { isConnected, publicKey, address, mnemonic, balance, walletKeys, connect, connectExtension, connectFromKeys, connectFromMnemonic, extensionDetected, disconnect, requestFaucet, refreshBalance } = useWallet();
+    const { isConnected, publicKey, address, mnemonic, balance, walletKeys, connect, connectExtension, connectFromKeys, connectFromMnemonic, extensionDetected, isExtensionWallet, disconnect, requestFaucet, refreshBalance } = useWallet();
     const rc = useRougeChain();
 
     const [copied, setCopied] = useState(false);
@@ -73,6 +74,29 @@ export default function WalletPage() {
     // Settings modal
     const [showSettings, setShowSettings] = useState(false);
 
+    // Password setup after new wallet creation
+    const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+    const [newWalletPassword, setNewWalletPassword] = useState('');
+    const [newWalletConfirm, setNewWalletConfirm] = useState('');
+    const [newWalletPwdError, setNewWalletPwdError] = useState('');
+    const [newWalletPwdBusy, setNewWalletPwdBusy] = useState(false);
+
+    const handleNewWalletPassword = async () => {
+        if (newWalletPassword.length < 6) { setNewWalletPwdError('Password must be at least 6 characters'); return; }
+        if (newWalletPassword !== newWalletConfirm) { setNewWalletPwdError('Passwords don\'t match'); return; }
+        setNewWalletPwdError('');
+        setNewWalletPwdBusy(true);
+        try {
+            if (walletKeys) {
+                await exportKeystore(walletKeys, newWalletPassword);
+            }
+            setShowPasswordSetup(false);
+        } catch (e) {
+            setNewWalletPwdError('Failed to export keystore');
+        }
+        setNewWalletPwdBusy(false);
+    };
+
     const copyKey = () => {
         if (!address && !publicKey) return;
         navigator.clipboard.writeText(address || publicKey!);
@@ -89,15 +113,12 @@ export default function WalletPage() {
             // Fetch NFTs owned
             try {
                 const owned = await rc.nft.getByOwner(publicKey);
-                setNfts((owned || []).map((n) => {
-                    const raw = n as unknown as Record<string, unknown>;
-                    return {
-                        collectionId: String(raw.collection_id || ''),
-                        tokenId: String(raw.token_id || ''),
-                        name: String(raw.name || ''),
-                        image: raw.image ? String(raw.image) : (raw.metadata_uri ? String(raw.metadata_uri) : undefined),
-                    };
-                }));
+                setNfts((owned || []).map((n) => ({
+                    collectionId: String(n.collection_id || ''),
+                    tokenId: String(n.token_id || ''),
+                    name: String(n.name || ''),
+                    image: n.image ? String(n.image) : (n.metadata_uri ? String(n.metadata_uri) : undefined),
+                })));
             } catch { setNfts([]); }
 
             // Fetch token balances
@@ -186,11 +207,10 @@ export default function WalletPage() {
         try {
             const amt = parseFloat(sendAmount);
             if (isNaN(amt) || amt <= 0) throw new Error('Invalid amount');
-            const result = await rc.transfer(walletKeys, {
-                to: sendTo,
-                amount: amt,
-                token: sendToken === 'XRGE' ? undefined : sendToken,
-            });
+            const txOpts = { to: sendTo, amount: amt, token: sendToken === 'XRGE' ? undefined : sendToken };
+            const result = isExtensionWallet
+                ? await ext.transfer(walletKeys.publicKey, txOpts as { to: string; amount: number; token?: string })
+                : await rc.transfer(walletKeys, txOpts);
             if (!result.success) throw new Error(result.error || 'Transfer failed');
             setSendSuccess(`Sent ${amt} ${sendToken} successfully`);
             setSendTo('');
@@ -251,7 +271,7 @@ export default function WalletPage() {
                             display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
                             gap: 12, maxWidth: 560, width: '100%',
                         }}>
-                            <button id="btn-new-wallet" onClick={() => { connect(); }} style={{
+                            <button id="btn-new-wallet" onClick={async () => { await connect(); setShowPasswordSetup(true); }} style={{
                                 background: 'var(--surface)', border: '1px solid var(--border)',
                                 borderRadius: 'var(--radius)', padding: '20px 16px',
                                 cursor: 'pointer', color: 'var(--fg)',
@@ -524,7 +544,7 @@ export default function WalletPage() {
                             }}>
                                 {nfts.map(nft => (
                                     <Link key={`${nft.collectionId}-${nft.tokenId}`}
-                                        to={`/track/${nft.collectionId}`}
+                                        to={`/track/${nft.collectionId}_${nft.tokenId}`}
                                         style={{
                                             background: 'var(--surface)', border: '1px solid var(--border)',
                                             borderRadius: 'var(--radius)', overflow: 'hidden',
@@ -631,20 +651,22 @@ export default function WalletPage() {
                         {/* Scrollable content */}
                         <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
 
-                            {/* Keystore section */}
-                            <div style={{ marginBottom: 24 }}>
-                                <h4 className="text-xs" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-muted)', marginBottom: 12 }}>Keystore Backup</h4>
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
-                                        onClick={() => { setShowSettings(false); setShowExportModal(true); }}>
-                                        <Download size={14} /> Export Keystore
-                                    </button>
-                                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
-                                        onClick={() => { setShowSettings(false); setShowImportModal(true); }}>
-                                        <Upload size={14} /> Import Keystore
-                                    </button>
+                            {/* Keystore section (hidden for extension wallets) */}
+                            {!isExtensionWallet && (
+                                <div style={{ marginBottom: 24 }}>
+                                    <h4 className="text-xs" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-muted)', marginBottom: 12 }}>Keystore Backup</h4>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                                            onClick={() => { setShowSettings(false); setShowExportModal(true); }}>
+                                            <Download size={14} /> Export Keystore
+                                        </button>
+                                        <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+                                            onClick={() => { setShowSettings(false); setShowImportModal(true); }}>
+                                            <Upload size={14} /> Import Keystore
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Seed phrase section */}
                             {mnemonic && (
@@ -707,6 +729,69 @@ export default function WalletPage() {
                                 </p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Password Setup Modal (after new wallet creation) */}
+            {showPasswordSetup && (
+                <div className="sidebar-overlay" style={{
+                    zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: 'var(--bg)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)', padding: 28, maxWidth: 420, width: '90%',
+                    }}>
+                        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                            <div style={{
+                                width: 48, height: 48, borderRadius: '50%', margin: '0 auto 12px',
+                                background: 'rgba(168,85,247,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <KeyRound size={24} style={{ color: '#a855f7' }} />
+                            </div>
+                            <h3 style={{ color: 'var(--fg)', fontWeight: 700, fontSize: '1.1rem' }}>Set a Password</h3>
+                            <p className="text-xs text-muted" style={{ marginTop: 6, lineHeight: 1.4 }}>
+                                Create a password to encrypt your wallet keystore. You'll need this to import your wallet later.
+                            </p>
+                        </div>
+                        <input type="password" placeholder="Create password (min 6 characters)"
+                            value={newWalletPassword}
+                            onChange={e => { setNewWalletPassword(e.target.value); setNewWalletPwdError(''); }}
+                            style={{
+                                width: '100%', padding: '10px 14px', background: 'var(--surface)',
+                                border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                                color: 'var(--fg)', fontSize: '0.85rem', marginBottom: 8,
+                            }}
+                        />
+                        <input type="password" placeholder="Confirm password"
+                            value={newWalletConfirm}
+                            onChange={e => { setNewWalletConfirm(e.target.value); setNewWalletPwdError(''); }}
+                            onKeyDown={e => e.key === 'Enter' && handleNewWalletPassword()}
+                            style={{
+                                width: '100%', padding: '10px 14px', background: 'var(--surface)',
+                                border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                                color: 'var(--fg)', fontSize: '0.85rem', marginBottom: 8,
+                            }}
+                        />
+                        {newWalletPwdError && (
+                            <p style={{ color: '#ef4444', fontSize: '0.75rem', textAlign: 'center', marginBottom: 8 }}>{newWalletPwdError}</p>
+                        )}
+                        <button className="btn btn-primary" disabled={!newWalletPassword || !newWalletConfirm || newWalletPwdBusy}
+                            onClick={handleNewWalletPassword}
+                            style={{ width: '100%', padding: '10px', fontSize: '0.85rem', gap: 6, marginBottom: 8 }}>
+                            {newWalletPwdBusy ? 'Encrypting...' : 'Set Password & Export Keystore'}
+                        </button>
+                        <button onClick={() => setShowPasswordSetup(false)}
+                            style={{
+                                width: '100%', padding: '8px', fontSize: '0.8rem', gap: 6,
+                                background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                            }}>
+                            Skip for now
+                        </button>
+                        <p className="text-xs text-muted" style={{ textAlign: 'center', marginTop: 12, lineHeight: 1.4 }}>
+                            Your keystore file is encrypted with AES-256-GCM (PBKDF2, 600K iterations).
+                        </p>
                     </div>
                 </div>
             )}
@@ -818,8 +903,8 @@ export default function WalletPage() {
                             Transfer XRGE or song tokens to another wallet.
                         </p>
                         <div style={{ marginBottom: 12 }}>
-                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Recipient Public Key</label>
-                            <input type="text" className="form-input" placeholder="Paste recipient's public key"
+                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Recipient Address</label>
+                            <input type="text" className="form-input" placeholder="rouge1... address or public key"
                                 value={sendTo} onChange={e => setSendTo(e.target.value)}
                                 style={{ fontFamily: 'monospace', fontSize: '0.8rem' }} />
                         </div>
@@ -913,6 +998,7 @@ export default function WalletPage() {
                                         await connectFromMnemonic(words.join(' '));
                                         setShowSeedImportModal(false);
                                         setSeedInput('');
+                                        setShowPasswordSetup(true);
                                     } catch {
                                         setSeedError('Invalid seed phrase — check your words');
                                     }

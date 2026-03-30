@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeftRight, Loader, Coins, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
+import * as ext from '../utils/extensionSigner';
 import { useNftTracks } from '../hooks/useNftTracks';
 import TokenChart from '../components/TokenChart';
 
@@ -24,7 +25,7 @@ interface PoolInfo {
 }
 
 export default function TradePage() {
-    const { isConnected, connect, balance, walletKeys } = useWallet();
+    const { isConnected, connect, balance, walletKeys, isExtensionWallet } = useWallet();
     const rc = useRougeChain();
     const { tracks } = useNftTracks();
     const [tokenSymbol, setTokenSymbol] = useState('');
@@ -53,16 +54,13 @@ export default function TradePage() {
             // Fetch all tokens on-chain
             const allTokens = await rc.getTokens();
             const tokens: SongToken[] = (allTokens || [])
-                .filter((t) => {
-                    const raw = t as unknown as Record<string, unknown>;
-                    const sym = raw.symbol as string;
+                .filter((t: Record<string, unknown>) => {
+                    const sym = t.symbol as string;
                     if (!sym || sym === 'XRGE') return false;
-                    // If tracks loaded, filter to only song tokens minted via qRougee
-                    // If tracks not loaded yet, show all non-XRGE tokens as fallback
                     return knownSongTokens.size === 0 || knownSongTokens.has(sym);
                 })
-                .map((t) => {
-                    const raw = t as unknown as Record<string, unknown>;
+                .map((t: Record<string, unknown>) => {
+                    const raw = t;
                     return {
                         symbol: String(raw.symbol || ''),
                         name: String(raw.name || raw.token_name || raw.symbol || ''),
@@ -75,8 +73,8 @@ export default function TradePage() {
             // Fetch DEX pools
             try {
                 const allPools = await rc.dex.getPools();
-                const poolList: PoolInfo[] = (allPools || []).map((p) => {
-                    const raw = p as unknown as Record<string, unknown>;
+                const poolList: PoolInfo[] = (allPools || []).map((p: Record<string, unknown>) => {
+                    const raw = p;
                     return {
                         poolId: String(raw.pool_id || raw.id || ''),
                         tokenA: String(raw.token_a || ''),
@@ -179,21 +177,17 @@ export default function TradePage() {
             }
 
             if (direction === 'buy') {
-                const result = await rc.dex.swap(walletKeys, {
-                    tokenIn: 'XRGE',
-                    tokenOut: tokenSymbol,
-                    amountIn: amountNum,
-                    minAmountOut: 0,
-                });
+                const swapOpts = { tokenIn: 'XRGE', tokenOut: tokenSymbol, amountIn: amountNum, minAmountOut: 0 };
+                const result = isExtensionWallet
+                    ? await ext.dexSwap(walletKeys.publicKey, swapOpts)
+                    : await rc.dex.swap(walletKeys, swapOpts);
                 if (!result.success) throw new Error(result.error || 'Swap failed');
                 setSuccess(`Bought ${tokenSymbol} for ${amount} XRGE`);
             } else {
-                const result = await rc.dex.swap(walletKeys, {
-                    tokenIn: tokenSymbol,
-                    tokenOut: 'XRGE',
-                    amountIn: amountNum,
-                    minAmountOut: 0,
-                });
+                const swapOpts = { tokenIn: tokenSymbol, tokenOut: 'XRGE', amountIn: amountNum, minAmountOut: 0 };
+                const result = isExtensionWallet
+                    ? await ext.dexSwap(walletKeys.publicKey, swapOpts)
+                    : await rc.dex.swap(walletKeys, swapOpts);
                 if (!result.success) throw new Error(result.error || 'Swap failed');
                 setSuccess(`Sold ${amount} ${tokenSymbol} for XRGE`);
             }
@@ -217,13 +211,11 @@ export default function TradePage() {
 
         try {
             const xrgeAmount = parseFloat(amount) || 100;
-            const tokenAmount = xrgeAmount * 100; // 100 tokens per 1 XRGE initial ratio
-            const result = await rc.dex.createPool(walletKeys, {
-                tokenA: 'XRGE',
-                tokenB: tokenSymbol,
-                amountA: xrgeAmount,
-                amountB: tokenAmount,
-            });
+            const tokenAmount = xrgeAmount * 100;
+            const poolOpts = { tokenA: 'XRGE', tokenB: tokenSymbol, amountA: xrgeAmount, amountB: tokenAmount };
+            const result = isExtensionWallet
+                ? await ext.dexCreatePool(walletKeys.publicKey, poolOpts)
+                : await rc.dex.createPool(walletKeys, poolOpts);
             if (!result.success) throw new Error(result.error || 'Failed to create pool');
             setSuccess(`Liquidity pool created for ${tokenSymbol}/XRGE!`);
             fetchTokensAndPools();
@@ -402,7 +394,7 @@ export default function TradePage() {
                                 )}
                             </button>
                             <p className="text-xs text-muted" style={{ textAlign: 'center', marginTop: 8 }}>
-                                Seeds with 100 XRGE + 10,000 {tokenSymbol}
+                                Seeds with {parseFloat(amount) || 100} XRGE + {((parseFloat(amount) || 100) * 100).toLocaleString()} {tokenSymbol}
                             </p>
                         </div>
                     ) : (

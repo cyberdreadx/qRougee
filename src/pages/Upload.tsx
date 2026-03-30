@@ -1,45 +1,73 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Upload as UploadIcon, Music, CheckCircle, Loader, AlertCircle,
-    ChevronRight, ChevronLeft, Coins, Settings, Send
+    ChevronRight, ChevronLeft, Coins, Settings, Send, FileText, Trash2, Clock
 } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { pinFolder, pinJson } from '../utils/pinata';
 import { type RoyaltySplit, GENRES } from '../data/mockData';
+import * as ext from '../utils/extensionSigner';
 
 interface MintForm {
-    // Step 1 — Upload
     title: string;
     artist: string;
     genre: string;
     ticker: string;
     description: string;
     collaborators: string;
-    // Step 2 — Tokenomics
     tokenSupply: number;
     royaltySplit: RoyaltySplit;
     playGateThreshold: number;
     premiumThreshold: number;
 }
 
+interface Draft {
+    id: string;
+    form: MintForm;
+    step: number;
+    audioFileName?: string;
+    coverFileName?: string;
+    updatedAt: number;
+}
+
+const DRAFTS_KEY = 'qrougee_drafts';
+
+function loadDrafts(): Draft[] {
+    try {
+        return JSON.parse(localStorage.getItem(DRAFTS_KEY) || '[]');
+    } catch { return []; }
+}
+
+function saveDrafts(drafts: Draft[]) {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+}
+
+function deleteDraft(id: string) {
+    saveDrafts(loadDrafts().filter(d => d.id !== id));
+}
+
 const STEPS = ['Upload', 'Mint NFT', 'Tokenomics', 'Publish'];
 
+const DEFAULT_FORM: MintForm = {
+    title: '',
+    artist: '',
+    genre: '',
+    ticker: '',
+    description: '',
+    collaborators: '',
+    tokenSupply: 1_000_000,
+    royaltySplit: { artist: 60, tokenHolders: 25, collaborators: 10, platform: 5 },
+    playGateThreshold: 50,
+    premiumThreshold: 250,
+};
+
 export default function UploadPage() {
-    const { isConnected, connect, balance, walletKeys } = useWallet();
+    const { isConnected, connect, balance, walletKeys, isExtensionWallet } = useWallet();
     const rc = useRougeChain();
     const [step, setStep] = useState(0);
-    const [form, setForm] = useState<MintForm>({
-        title: '',
-        artist: '',
-        genre: '',
-        ticker: '',
-        description: '',        collaborators: '',
-        tokenSupply: 1_000_000,
-        royaltySplit: { artist: 60, tokenHolders: 25, collaborators: 10, platform: 5 },
-        playGateThreshold: 50,
-        premiumThreshold: 250,
-    });
+    const [form, setForm] = useState<MintForm>({ ...DEFAULT_FORM });
     const [coverFile, setCoverFile] = useState<File | null>(null);
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [isMinting, setIsMinting] = useState(false);
@@ -51,6 +79,71 @@ export default function UploadPage() {
         tokenSymbol?: string;
     }>({});
     const [mintStep, setMintStep] = useState('');
+
+    // ── Drafts ────────────────────────────────────────────────────
+    const [drafts, setDrafts] = useState<Draft[]>(loadDrafts);
+    const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+    const [showDrafts, setShowDrafts] = useState(false);
+    const [draftSaved, setDraftSaved] = useState(false);
+
+    const refreshDrafts = useCallback(() => setDrafts(loadDrafts()), []);
+
+    const saveDraft = useCallback(() => {
+        if (!form.title && !form.artist) return;
+        const id = activeDraftId || `draft_${Date.now()}`;
+        const draft: Draft = {
+            id,
+            form,
+            step,
+            audioFileName: audioFile?.name,
+            coverFileName: coverFile?.name,
+            updatedAt: Date.now(),
+        };
+        const existing = loadDrafts().filter(d => d.id !== id);
+        existing.unshift(draft);
+        saveDrafts(existing);
+        setActiveDraftId(id);
+        refreshDrafts();
+        setDraftSaved(true);
+        setTimeout(() => setDraftSaved(false), 2000);
+    }, [form, step, audioFile, coverFile, activeDraftId, refreshDrafts]);
+
+    const loadDraft = useCallback((draft: Draft) => {
+        setForm(draft.form);
+        setStep(draft.step);
+        setActiveDraftId(draft.id);
+        setShowDrafts(false);
+        setMintSuccess(false);
+        setMintError(null);
+        setCoverFile(null);
+        setAudioFile(null);
+    }, []);
+
+    const removeDraft = useCallback((id: string) => {
+        deleteDraft(id);
+        refreshDrafts();
+        if (activeDraftId === id) setActiveDraftId(null);
+    }, [activeDraftId, refreshDrafts]);
+
+    // Auto-save every 10 seconds if the form has content
+    useEffect(() => {
+        if (!form.title && !form.artist) return;
+        const timer = setTimeout(() => {
+            const id = activeDraftId || `draft_${Date.now()}`;
+            const draft: Draft = {
+                id, form, step,
+                audioFileName: audioFile?.name,
+                coverFileName: coverFile?.name,
+                updatedAt: Date.now(),
+            };
+            const existing = loadDrafts().filter(d => d.id !== id);
+            existing.unshift(draft);
+            saveDrafts(existing);
+            if (!activeDraftId) setActiveDraftId(id);
+            refreshDrafts();
+        }, 10_000);
+        return () => clearTimeout(timer);
+    }, [form, step, audioFile, coverFile, activeDraftId, refreshDrafts]);
 
     // Preview URLs (freed when file changes)
     const audioPreviewUrl = useMemo(() => {
@@ -164,14 +257,17 @@ export default function UploadPage() {
 
             // Step 3: Create NFT Collection on-chain
             setMintStep('Creating master NFT collection...');
-            const createResult = await rc.nft.createCollection(walletKeys, {
+            const collectionOpts = {
                 symbol: collectionSymbol,
                 name: `${form.title} — ${form.artist}`,
                 maxSupply: 1,
                 royaltyBps: form.royaltySplit.artist * 100,
                 description: form.description || `Track: ${form.title} by ${form.artist}`,
                 image: coverIpfsUrl || undefined,
-            });
+            };
+            const createResult = isExtensionWallet
+                ? await ext.nftCreateCollection(walletKeys.publicKey, collectionOpts)
+                : await rc.nft.createCollection(walletKeys, collectionOpts);
 
             if (!createResult.success) {
                 throw new Error(createResult.error || 'Failed to create collection');
@@ -185,12 +281,15 @@ export default function UploadPage() {
             await rc.nft.waitForCollection(collectionId, { timeoutMs: 30_000, pollMs: 1_000 });
 
             setMintStep('Minting master NFT...');
-            const mintRes = await rc.nft.mint(walletKeys, {
+            const mintOpts = {
                 collectionId,
                 name: form.title,
                 metadataUri: metadataPin.url,
                 attributes: metadata,
-            });
+            };
+            const mintRes = isExtensionWallet
+                ? await ext.nftMint(walletKeys.publicKey, mintOpts)
+                : await rc.nft.mint(walletKeys, mintOpts);
 
             if (!mintRes.success) {
                 throw new Error(mintRes.error || 'Failed to mint token');
@@ -198,13 +297,15 @@ export default function UploadPage() {
 
             // Step 5: Create the song token (fractionalization)
             setMintStep('Creating song token...');
-
-            const tokenResult = await rc.createToken(walletKeys, {
+            const tokenOpts = {
                 name: `${form.title} Token`,
                 symbol: tokenSymbol,
                 totalSupply: form.tokenSupply,
                 image: coverIpfsUrl || undefined,
-            });
+            };
+            const tokenResult = isExtensionWallet
+                ? await ext.createToken(walletKeys.publicKey, tokenOpts)
+                : await rc.createToken(walletKeys, tokenOpts);
 
             if (!tokenResult.success) {
                 throw new Error(tokenResult.error || 'Failed to create song token');
@@ -213,23 +314,22 @@ export default function UploadPage() {
             // Step 6: Create DEX liquidity pool so the token is immediately tradeable
             setMintStep('Creating liquidity pool...');
             try {
-                // Seed pool with 10% of total supply + proportional XRGE
                 const poolTokens = Math.floor(form.tokenSupply * 0.1);
-                const poolXrge = Math.max(10, Math.floor(poolTokens / 1000)); // 1 XRGE per 1000 tokens
-                await rc.dex.createPool(walletKeys, {
-                    tokenA: 'XRGE',
-                    tokenB: tokenSymbol,
-                    amountA: poolXrge,
-                    amountB: poolTokens,
-                });
+                const poolXrge = Math.max(10, Math.floor(poolTokens / 1000));
+                const poolOpts = { tokenA: 'XRGE', tokenB: tokenSymbol, amountA: poolXrge, amountB: poolTokens };
+                if (isExtensionWallet) {
+                    await ext.dexCreatePool(walletKeys.publicKey, poolOpts);
+                } else {
+                    await rc.dex.createPool(walletKeys, poolOpts);
+                }
             } catch {
-                // Pool creation is non-critical — token still works without it
                 console.warn('Pool creation failed — token is live but not yet tradeable');
             }
 
             setMintResult({ collectionId, tokenId: '1', tokenSymbol });
             setIsMinting(false);
             setMintSuccess(true);
+            if (activeDraftId) { removeDraft(activeDraftId); }
         } catch (err) {
             setIsMinting(false);
             setMintError(
@@ -295,20 +395,15 @@ export default function UploadPage() {
                                 setMintSuccess(false);
                                 setMintResult({});
                                 setStep(0);
-                                setForm({
-                                    title: '', artist: '', genre: '', ticker: '', description: '', collaborators: '',
-                                    tokenSupply: 1_000_000,
-                                    royaltySplit: { artist: 60, tokenHolders: 25, collaborators: 10, platform: 5 },
-                                    playGateThreshold: 50,
-                                    premiumThreshold: 250,
-                                });
+                                setForm({ ...DEFAULT_FORM });
                                 setCoverFile(null);
                                 setAudioFile(null);
+                                setActiveDraftId(null);
                             }}
                         >
                             Mint Another
                         </button>
-                        <a href="/" className="btn btn-secondary">Go Home</a>
+                        <Link to="/" className="btn btn-secondary">Go Home</Link>
                     </div>
                 </div>
             </div>
@@ -333,6 +428,89 @@ export default function UploadPage() {
                     </div>
                 ))}
             </div>
+
+            {/* Drafts bar */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                marginBottom: 16, flexWrap: 'wrap',
+            }}>
+                {drafts.length > 0 && (
+                    <button
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                        onClick={() => setShowDrafts(s => !s)}
+                    >
+                        <FileText size={14} />
+                        Drafts ({drafts.length})
+                    </button>
+                )}
+                {(form.title || form.artist) && (
+                    <button
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                        onClick={saveDraft}
+                    >
+                        {draftSaved ? <><CheckCircle size={14} /> Saved</> : <><FileText size={14} /> Save Draft</>}
+                    </button>
+                )}
+                {activeDraftId && (
+                    <span className="text-xs text-muted" style={{ marginLeft: 4 }}>
+                        Editing draft — auto-saves periodically
+                    </span>
+                )}
+            </div>
+
+            {showDrafts && drafts.length > 0 && (
+                <div style={{
+                    marginBottom: 24, border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', overflow: 'hidden',
+                }}>
+                    <div style={{
+                        padding: '10px 16px', background: 'var(--bg-secondary)',
+                        borderBottom: '1px solid var(--border)',
+                        fontWeight: 600, fontSize: '0.85rem',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                        <FileText size={14} />
+                        Saved Drafts
+                    </div>
+                    {drafts.map(d => (
+                        <div key={d.id} style={{
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '12px 16px',
+                            borderBottom: '1px solid var(--border)',
+                        }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                                    {d.form.title || 'Untitled'} {d.form.artist ? `— ${d.form.artist}` : ''}
+                                </div>
+                                <div className="text-xs text-muted" style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                    <Clock size={10} />
+                                    {new Date(d.updatedAt).toLocaleDateString()} {new Date(d.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    <span style={{ margin: '0 4px' }}>·</span>
+                                    Step {d.step + 1}/{STEPS.length}
+                                    {d.audioFileName && <><span style={{ margin: '0 4px' }}>·</span>🎵 {d.audioFileName}</>}
+                                </div>
+                            </div>
+                            <button
+                                className="btn btn-primary"
+                                style={{ fontSize: '0.75rem', padding: '4px 12px', whiteSpace: 'nowrap' }}
+                                onClick={() => loadDraft(d)}
+                            >
+                                Resume
+                            </button>
+                            <button
+                                className="btn btn-secondary"
+                                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                onClick={() => removeDraft(d.id)}
+                                title="Delete draft"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {mintError && (
                 <div className="mint-error" style={{

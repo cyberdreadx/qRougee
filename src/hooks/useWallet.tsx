@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { type WalletKeys } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { pubkeyToAddress, formatAddress } from '../utils/address';
@@ -22,6 +22,11 @@ interface WalletContextType extends WalletState {
     extensionDetected: boolean;
     /** Whether the current wallet is connected via extension (read-only, signing via extension) */
     isExtensionWallet: boolean;
+    /**
+     * Sign a transaction payload via the extension provider.
+     * Returns the signed result, or throws if extension is unavailable.
+     */
+    signViaExtension: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>;
     connect: () => Promise<void>;
     connectExtension: () => Promise<void>;
     connectFromKeys: (keys: WalletKeys) => Promise<void>;
@@ -56,7 +61,7 @@ function loadSessionKeys(): WalletKeys | null {
         const raw = sessionStorage.getItem(SESSION_KEYS);
         if (!raw) return null;
         const keys = JSON.parse(raw) as WalletKeys;
-        if (keys.publicKey && keys.privateKey) return keys;
+        if (keys.publicKey) return keys;
         return null;
     } catch {
         return null;
@@ -75,9 +80,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [extensionDetected, setExtensionDetected] = useState(false);
     const [isExtensionWallet, setIsExtensionWallet] = useState(false);
 
-    // Detect RougeChain Wallet browser extension
+    // Detect RougeChain Wallet browser extension / Qwalla dApp browser provider
+    // and auto-connect if available (e.g. when opened inside Qwalla's built-in browser)
+    const autoConnectAttempted = useRef(false);
+
     useEffect(() => {
-        const check = () => setExtensionDetected(!!(window as any).rougechain?.isRougeChain);
+        const check = () => {
+            const detected = !!(window as any).rougechain?.isRougeChain;
+            setExtensionDetected(detected);
+            if (detected && !autoConnectAttempted.current) {
+                autoConnectAttempted.current = true;
+                const existing = loadSessionKeys();
+                if (!existing) {
+                    void connectExtensionInternal();
+                }
+            }
+        };
         check();
         window.addEventListener('rougechain#initialized', check);
         return () => window.removeEventListener('rougechain#initialized', check);
@@ -110,6 +128,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const keys = loadSessionKeys();
         if (keys) {
             setWalletKeys(keys);
+            const wasExtension = sessionStorage.getItem('qrougee_ext_wallet') === 'true';
+            if (wasExtension) setIsExtensionWallet(true);
             const mnemonic = (keys as any).mnemonic || null;
             setState({
                 publicKey: keys.publicKey,
@@ -209,7 +229,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         await fetchBalance(keys.publicKey);
     }, [fetchBalance]);
 
-    const connectExtension = useCallback(async () => {
+    const connectExtensionInternal = async () => {
         setState(prev => ({ ...prev, isLoading: true }));
         try {
             const provider = (window as any).rougechain;
@@ -240,7 +260,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         } catch {
             setState(prev => ({ ...prev, isLoading: false }));
         }
-    }, [fetchBalance]);
+    };
+
+    const connectExtension = useCallback(connectExtensionInternal, [fetchBalance]);
+
+    const signViaExtension = useCallback(async (payload: Record<string, unknown>): Promise<Record<string, unknown>> => {
+        const provider = (window as any).rougechain;
+        if (!provider?.isRougeChain) {
+            throw new Error('RougeChain Wallet extension not available');
+        }
+        if (typeof provider.signTransaction === 'function') {
+            return await provider.signTransaction(payload);
+        }
+        if (typeof provider.signAndSendTransaction === 'function') {
+            return await provider.signAndSendTransaction(payload);
+        }
+        throw new Error('Extension does not support transaction signing');
+    }, []);
 
     const disconnect = useCallback(() => {
         setWalletKeys(null);
@@ -281,6 +317,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 walletKeys,
                 extensionDetected,
                 isExtensionWallet,
+                signViaExtension,
                 connect,
                 connectExtension,
                 connectFromKeys,
