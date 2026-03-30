@@ -1,0 +1,51 @@
+{
+  "name": "@rougechain/sdk",
+  "version": "1.0.0",
+  "description": "Official SDK for RougeChain — post-quantum Layer 1 blockchain secured by ML-DSA-65",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "rougechain",
+    "blockchain",
+    "post-quantum",
+    "ml-dsa-65",
+    "dilithium",
+    "crypto",
+    "web3",
+    "sdk"
+  ],
+  "homepage": "https://rougechain.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cyberdreadx/rougechain-node",
+    "directory": "sdk"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@noble/hashes": "~2.0.0",
+    "@noble/post-quantum": "~0.5.4",
+    "@scure/bip39": "^2.0.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  }
+}
