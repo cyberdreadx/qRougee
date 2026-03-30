@@ -40,6 +40,7 @@ export default function TradePage() {
     const [pools, setPools] = useState<PoolInfo[]>([]);
     const [loading, setLoading] = useState(false);
     const [quote, setQuote] = useState<{ amountOut: number; price: number } | null>(null);
+    const [poolTokenAmt, setPoolTokenAmt] = useState('');
 
     const fetchTokensAndPools = useCallback(async () => {
         setLoading(true);
@@ -205,19 +206,29 @@ export default function TradePage() {
 
     const handleCreatePool = async () => {
         if (!walletKeys || !tokenSymbol) return;
+        const xrgeAmt = parseFloat(amount) || 0;
+        const tokenAmt = parseFloat(poolTokenAmt) || 0;
+        if (xrgeAmt <= 0 || tokenAmt <= 0) {
+            setError('Enter both XRGE and token amounts for the pool');
+            return;
+        }
+        const tok = songTokens.find(t => t.symbol === tokenSymbol);
+        if (tok && tokenAmt > tok.supply) {
+            setError(`Can't seed more than total supply (${tok.supply.toLocaleString()} ${tokenSymbol})`);
+            return;
+        }
         setIsSwapping(true);
         setError('');
         setSuccess('');
 
         try {
-            const xrgeAmount = parseFloat(amount) || 100;
-            const tokenAmount = xrgeAmount * 100;
-            const poolOpts = { tokenA: 'XRGE', tokenB: tokenSymbol, amountA: xrgeAmount, amountB: tokenAmount };
+            const poolOpts = { tokenA: 'XRGE', tokenB: tokenSymbol, amountA: xrgeAmt, amountB: tokenAmt };
             const result = isExtensionWallet
                 ? await ext.dexCreatePool(walletKeys.publicKey, poolOpts)
                 : await rc.dex.createPool(walletKeys, poolOpts);
             if (!result.success) throw new Error(result.error || 'Failed to create pool');
-            setSuccess(`Liquidity pool created for ${tokenSymbol}/XRGE!`);
+            setSuccess(`Pool created: ${xrgeAmt.toLocaleString()} XRGE + ${tokenAmt.toLocaleString()} ${tokenSymbol}`);
+            setPoolTokenAmt('');
             fetchTokensAndPools();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create pool');
@@ -379,23 +390,76 @@ export default function TradePage() {
                         <div>
                             <p className="text-sm text-muted" style={{ marginBottom: 12 }}>
                                 No liquidity pool exists for <strong>{tokenSymbol}</strong>/XRGE yet.
-                                Create one to enable trading.
+                                Seed one to enable trading.
                             </p>
+
+                            <div className="form-group">
+                                <label className="form-label">XRGE to pair</label>
+                                <input type="number" className="form-input" placeholder="e.g. 500"
+                                    value={amount}
+                                    onChange={e => setAmount(e.target.value)}
+                                    min={1} />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">{tokenSymbol} tokens to pair</label>
+                                <input type="number" className="form-input"
+                                    placeholder={`Max: ${(songTokens.find(t => t.symbol === tokenSymbol)?.supply || 0).toLocaleString()}`}
+                                    value={poolTokenAmt}
+                                    onChange={e => setPoolTokenAmt(e.target.value)}
+                                    min={1} />
+                                {(() => {
+                                    const tok = songTokens.find(t => t.symbol === tokenSymbol);
+                                    return tok ? (
+                                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                                            {[10, 25, 50].map(pct => (
+                                                <button key={pct} className="btn btn-secondary"
+                                                    style={{ fontSize: '0.7rem', padding: '3px 8px' }}
+                                                    onClick={() => setPoolTokenAmt(String(Math.floor(tok.supply * pct / 100)))}>
+                                                    {pct}%
+                                                </button>
+                                            ))}
+                                            <span className="text-xs text-muted" style={{ alignSelf: 'center', marginLeft: 4 }}>
+                                                of {tok.supply.toLocaleString()} supply
+                                            </span>
+                                        </div>
+                                    ) : null;
+                                })()}
+                            </div>
+
+                            {parseFloat(amount) > 0 && parseFloat(poolTokenAmt) > 0 && (
+                                <div style={{
+                                    padding: '10px 14px', marginBottom: 16,
+                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius)', fontSize: '0.8125rem',
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                        <span className="text-muted">Starting price</span>
+                                        <span style={{ fontWeight: 600 }}>
+                                            {(parseFloat(amount) / parseFloat(poolTokenAmt)).toFixed(6)} XRGE/{tokenSymbol}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span className="text-muted">Fully diluted value</span>
+                                        <span className="text-xs">
+                                            {((parseFloat(amount) / parseFloat(poolTokenAmt)) * (songTokens.find(t => t.symbol === tokenSymbol)?.supply || 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })} XRGE
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
                             <button
                                 className="btn btn-primary"
-                                disabled={isSwapping}
+                                disabled={isSwapping || !amount || !poolTokenAmt}
                                 onClick={handleCreatePool}
                                 style={{ width: '100%', padding: '14px 20px' }}
                             >
                                 {isSwapping ? (
                                     <><Loader size={16} className="spin" /> Creating Pool...</>
                                 ) : (
-                                    <>Create {tokenSymbol}/XRGE Pool</>
+                                    <>Seed {tokenSymbol}/XRGE Pool</>
                                 )}
                             </button>
-                            <p className="text-xs text-muted" style={{ textAlign: 'center', marginTop: 8 }}>
-                                Seeds with {parseFloat(amount) || 100} XRGE + {((parseFloat(amount) || 100) * 100).toLocaleString()} {tokenSymbol}
-                            </p>
                         </div>
                     ) : (
                         <button
