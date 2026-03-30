@@ -113,12 +113,33 @@ export default function WalletPage() {
             // Fetch NFTs owned
             try {
                 const owned = await rc.nft.getByOwner(publicKey);
-                setNfts((owned || []).map((n) => ({
-                    collectionId: String(n.collection_id || ''),
-                    tokenId: String(n.token_id || ''),
-                    name: String(n.name || ''),
-                    image: n.image ? String(n.image) : (n.metadata_uri ? String(n.metadata_uri) : undefined),
-                })));
+                const nftItems: OwnedNft[] = [];
+                for (const n of (owned || [])) {
+                    const raw = n as unknown as Record<string, unknown>;
+                    const attrs = raw.attributes as Record<string, unknown> | undefined;
+                    let img = raw.image as string | undefined;
+                    // Try attributes.image (set during mint), then collection image
+                    if (!img && attrs && typeof attrs.image === 'string') {
+                        img = attrs.image;
+                    }
+                    if (!img && attrs && typeof attrs.coverUrl === 'string') {
+                        img = attrs.coverUrl;
+                    }
+                    // If still no image, try fetching from the collection
+                    if (!img) {
+                        try {
+                            const col = await rc.nft.getCollection(String(raw.collection_id));
+                            if (col?.image) img = col.image;
+                        } catch { /* ignore */ }
+                    }
+                    nftItems.push({
+                        collectionId: String(raw.collection_id || ''),
+                        tokenId: String(raw.token_id || ''),
+                        name: String(raw.name || ''),
+                        image: img,
+                    });
+                }
+                setNfts(nftItems);
             } catch { setNfts([]); }
 
             // Fetch token balances
