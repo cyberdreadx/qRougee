@@ -15,7 +15,7 @@ export default function TrackDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { play, pause, currentTrack, isPlaying } = usePlayer();
-    const { tracks: nftTracks } = useNftTracks();
+    const { allTracksUnfiltered: nftTracks } = useNftTracks();
     const { walletKeys, isExtensionWallet } = useWallet();
     const rc = useRougeChain();
     const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 60, duration: 500, deps: [id, nftTracks.length] });
