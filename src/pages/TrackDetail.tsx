@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { Play, Pause, ArrowLeft, Coins, Shield, Lock, ExternalLink, Heart, MessageCircle, Send, Trash2, Loader, EyeOff, Eye, Flame } from 'lucide-react';
+import { Play, Pause, ArrowLeft, Coins, Shield, Lock, ExternalLink, Heart, MessageCircle, Send, Trash2, Loader, EyeOff, Eye, Flame, Image as ImageIcon } from 'lucide-react';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { useWallet } from '../hooks/useWallet';
@@ -40,6 +40,17 @@ export default function TrackDetail() {
     const [burnConfirmOpen, setBurnConfirmOpen] = useState(false);
     const [burnLoading, setBurnLoading] = useState(false);
 
+    // Collectible mint state
+    const [collectibleCol, setCollectibleCol] = useState<{
+        collection_id: string; mint_price?: number; public_mint?: boolean;
+        minted: number; max_supply?: number;
+        token_gate_symbol?: string; token_gate_amount?: number; discount_pct?: number;
+        image?: string;
+    } | null>(null);
+    const [collectibleLoading, setCollectibleLoading] = useState(false);
+    const [collectibleMinting, setCollectibleMinting] = useState(false);
+    const [collectibleMintResult, setCollectibleMintResult] = useState<string | null>(null);
+
     const loadSocial = useCallback(async () => {
         if (!id) return;
         try {
@@ -53,6 +64,47 @@ export default function TrackDetail() {
     }, [id, walletKeys?.publicKey, rc]);
 
     useEffect(() => { loadSocial(); }, [loadSocial]);
+
+    // Look up collectible collection for this track
+    useEffect(() => {
+        if (!track?.collectionId) return;
+        setCollectibleLoading(true);
+        // Collectible collection ID is the same prefix but with COL suffix instead of NFT
+        const colId = track.collectionId.replace(/NFT$/, 'COL');
+        if (colId === track.collectionId) { setCollectibleLoading(false); return; }
+        rc.nft.getCollection(colId)
+            .then((col: any) => {
+                if (col && col.public_mint) setCollectibleCol(col);
+            })
+            .catch(() => {})
+            .finally(() => setCollectibleLoading(false));
+    }, [track?.collectionId, rc]);
+
+    const handleCollectibleMint = async () => {
+        if (!walletKeys || !collectibleCol || collectibleMinting) return;
+        setCollectibleMinting(true);
+        setCollectibleMintResult(null);
+        try {
+            const mintOpts = {
+                collectionId: collectibleCol.collection_id,
+                name: `${track!.title} — Collectible #${collectibleCol.minted + 1}`,
+                metadataUri: track!.coverUrl,
+                attributes: { type: 'album_cover_collectible', trackId: id },
+            };
+            const res = isExtensionWallet
+                ? await ext.nftMint(walletKeys.publicKey, mintOpts)
+                : await rc.nft.mint(walletKeys, mintOpts);
+            if (res.success) {
+                setCollectibleMintResult('Minted successfully!');
+                setCollectibleCol(prev => prev ? { ...prev, minted: prev.minted + 1 } : prev);
+            } else {
+                setCollectibleMintResult((res as any).error || 'Mint failed');
+            }
+        } catch (e) {
+            setCollectibleMintResult(e instanceof Error ? e.message : 'Mint failed');
+        }
+        setCollectibleMinting(false);
+    };
 
     const isCreator = !!(walletKeys && track?.creator && walletKeys.publicKey === track.creator);
 
@@ -446,6 +498,62 @@ export default function TrackDetail() {
                                 <span><span className="split-dot" style={{ background: '#64748b' }} /> Platform {track.royaltySplit.platform}%</span>
                             </div>
                         </div>
+                    )}
+                </div>
+            )}
+
+            {/* Collectible Album Cover */}
+            {collectibleCol && (
+                <div className="section anime-stagger-item" style={{ marginTop: 32 }}>
+                    <h3 style={{ marginBottom: 16 }}>
+                        <ImageIcon size={16} style={{ verticalAlign: -2, marginRight: 6 }} />
+                        Collectible Album Cover
+                    </h3>
+                    <div className="chain-info" style={{ marginBottom: 16 }}>
+                        <div className="chain-info-row">
+                            <span className="chain-info-label">Minted</span>
+                            <span className="chain-info-value">
+                                {collectibleCol.minted}{collectibleCol.max_supply ? ` / ${collectibleCol.max_supply}` : ''}
+                            </span>
+                        </div>
+                        <div className="chain-info-row">
+                            <span className="chain-info-label">Price</span>
+                            <span className="chain-info-value">{collectibleCol.mint_price ?? 0} XRGE</span>
+                        </div>
+                        {collectibleCol.token_gate_symbol && (
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Holder Discount</span>
+                                <span className="chain-info-value">
+                                    Hold {collectibleCol.token_gate_amount ?? 1} {collectibleCol.token_gate_symbol} for
+                                    {' '}
+                                    {(collectibleCol.discount_pct ?? 100) >= 100
+                                        ? 'free mint'
+                                        : `${collectibleCol.discount_pct}% off`}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                    {(!collectibleCol.max_supply || collectibleCol.minted < collectibleCol.max_supply) ? (
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleCollectibleMint}
+                            disabled={collectibleMinting || !walletKeys}
+                            style={{ width: '100%', padding: '12px 20px' }}
+                        >
+                            {collectibleMinting
+                                ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Minting...</>
+                                : <><ImageIcon size={14} /> Mint Album Cover</>}
+                        </button>
+                    ) : (
+                        <p className="text-sm text-muted" style={{ textAlign: 'center' }}>Sold out!</p>
+                    )}
+                    {collectibleMintResult && (
+                        <p className="text-xs" style={{
+                            marginTop: 8, textAlign: 'center',
+                            color: collectibleMintResult.includes('success') ? '#16a34a' : '#dc2626',
+                        }}>
+                            {collectibleMintResult}
+                        </p>
                     )}
                 </div>
             )}

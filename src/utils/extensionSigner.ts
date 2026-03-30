@@ -107,7 +107,12 @@ async function signAndSubmit(endpoint: string, payload: Payload, publicKey: stri
 
 export async function nftCreateCollection(
     publicKey: string,
-    opts: { symbol: string; name: string; maxSupply: number; royaltyBps: number; description?: string; image?: string }
+    opts: {
+        symbol: string; name: string; maxSupply?: number; royaltyBps: number;
+        description?: string; image?: string;
+        publicMint?: boolean; mintPrice?: number;
+        tokenGateSymbol?: string; tokenGateAmount?: number; discountPct?: number;
+    }
 ): Promise<ApiResult> {
     const payload: Payload = {
         type: 'nft_create_collection',
@@ -115,10 +120,15 @@ export async function nftCreateCollection(
         symbol: opts.symbol,
         name: opts.name,
         fee: 50,
-        maxSupply: opts.maxSupply,
+        ...(opts.maxSupply != null ? { maxSupply: opts.maxSupply } : {}),
         royaltyBps: opts.royaltyBps,
         ...(opts.description ? { description: opts.description } : {}),
         ...(opts.image ? { image: opts.image } : {}),
+        ...(opts.publicMint != null ? { publicMint: opts.publicMint } : {}),
+        ...(opts.mintPrice != null ? { mintPrice: opts.mintPrice } : {}),
+        ...(opts.tokenGateSymbol ? { tokenGateSymbol: opts.tokenGateSymbol } : {}),
+        ...(opts.tokenGateAmount != null ? { tokenGateAmount: opts.tokenGateAmount } : {}),
+        ...(opts.discountPct != null ? { discountPct: opts.discountPct } : {}),
         timestamp: Date.now(),
         nonce: generateNonce(),
     };

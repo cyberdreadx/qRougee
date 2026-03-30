@@ -23,6 +23,11 @@ interface MintForm {
     premiumThreshold: number;
     poolPct: number;
     poolXrge: number;
+    collectibleEnabled: boolean;
+    collectibleMaxSupply: number;
+    collectibleMintPrice: number;
+    collectibleTokenGate: boolean;
+    collectibleDiscountPct: number;
 }
 
 interface Draft {
@@ -50,7 +55,7 @@ function deleteDraft(id: string) {
     saveDrafts(loadDrafts().filter(d => d.id !== id));
 }
 
-const STEPS = ['Upload', 'Mint NFT', 'Tokenomics', 'Publish'];
+const STEPS = ['Upload', 'Mint NFT', 'Tokenomics', 'Collectible', 'Publish'];
 
 const DEFAULT_FORM: MintForm = {
     title: '',
@@ -65,6 +70,11 @@ const DEFAULT_FORM: MintForm = {
     premiumThreshold: 250,
     poolPct: 10,
     poolXrge: 500,
+    collectibleEnabled: false,
+    collectibleMaxSupply: 0,
+    collectibleMintPrice: 10,
+    collectibleTokenGate: true,
+    collectibleDiscountPct: 100,
 };
 
 export default function UploadPage() {
@@ -81,6 +91,7 @@ export default function UploadPage() {
         collectionId?: string;
         tokenId?: string;
         tokenSymbol?: string;
+        collectibleColId?: string;
     }>({});
     const [mintStep, setMintStep] = useState('');
 
@@ -349,7 +360,37 @@ export default function UploadPage() {
                 await new Promise(r => setTimeout(r, 2000));
             }
 
-            setMintResult({ collectionId, tokenId: '1', tokenSymbol });
+            // Step 7: Create collectible album cover collection (if enabled)
+            let collectibleColId: string | undefined;
+            if (form.collectibleEnabled) {
+                setMintStep('Creating collectible collection...');
+                try {
+                    const colSymbol = `${baseCollectionSym}COL`;
+                    const colOpts = {
+                        symbol: colSymbol,
+                        name: `${form.title} — Collectible`,
+                        maxSupply: form.collectibleMaxSupply > 0 ? form.collectibleMaxSupply : undefined,
+                        royaltyBps: form.royaltySplit.artist * 100,
+                        description: `Collectible album cover for "${form.title}" by ${form.artist}`,
+                        image: coverIpfsUrl || undefined,
+                        publicMint: true,
+                        mintPrice: form.collectibleMintPrice,
+                        tokenGateSymbol: form.collectibleTokenGate ? tokenSymbol : undefined,
+                        tokenGateAmount: form.collectibleTokenGate ? 1 : undefined,
+                        discountPct: form.collectibleTokenGate ? form.collectibleDiscountPct : undefined,
+                    };
+                    const colRes = isExtensionWallet
+                        ? await ext.nftCreateCollection(walletKeys.publicKey, colOpts)
+                        : await rc.nft.createCollection(walletKeys, colOpts);
+                    collectibleColId = (colRes.data as { collection_id?: string })?.collection_id || colSymbol;
+                } catch (colErr) {
+                    console.warn('Collectible collection creation failed:', colErr);
+                    setMintStep('Track published! Collectible collection creation failed — can be retried later.');
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
+
+            setMintResult({ collectionId, tokenId: '1', tokenSymbol, collectibleColId });
             setIsMinting(false);
             setMintSuccess(true);
             if (activeDraftId) { removeDraft(activeDraftId); }
@@ -410,6 +451,12 @@ export default function UploadPage() {
                             <span className="chain-info-label">Play Gate</span>
                             <span className="chain-info-value">Hold {form.playGateThreshold} {mintResult.tokenSymbol} for unlimited</span>
                         </div>
+                        {mintResult.collectibleColId && (
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Collectible</span>
+                                <span className="chain-info-value">{mintResult.collectibleColId}</span>
+                            </div>
+                        )}
                     </div>
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                         <button
@@ -899,8 +946,142 @@ export default function UploadPage() {
                     </>
                 )}
 
-                {/* ── Step 3: Publish ───────────────────────── */}
+                {/* ── Step 3: Collectible Config ─────────────── */}
                 {step === 3 && (
+                    <>
+                        <h3 style={{ marginBottom: 16 }}>
+                            <Settings size={18} style={{ verticalAlign: -3, marginRight: 6 }} />
+                            Album Cover Collectible
+                        </h3>
+                        <p className="text-sm text-muted" style={{ marginBottom: 20 }}>
+                            Let fans mint the album cover as a collectible NFT. Token holders can get free or discounted mints.
+                        </p>
+
+                        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <label style={{
+                                position: 'relative', display: 'inline-block', width: 44, height: 24,
+                                cursor: 'pointer',
+                            }}>
+                                <input type="checkbox" checked={form.collectibleEnabled}
+                                    onChange={e => setForm({ ...form, collectibleEnabled: e.target.checked })}
+                                    style={{ opacity: 0, width: 0, height: 0 }} />
+                                <span style={{
+                                    position: 'absolute', inset: 0, borderRadius: 12,
+                                    background: form.collectibleEnabled ? 'var(--accent)' : 'var(--border)',
+                                    transition: 'background .2s',
+                                }}>
+                                    <span style={{
+                                        position: 'absolute', left: form.collectibleEnabled ? 22 : 2,
+                                        top: 2, width: 20, height: 20, borderRadius: '50%',
+                                        background: '#fff', transition: 'left .2s',
+                                    }} />
+                                </span>
+                            </label>
+                            <span style={{ fontWeight: 500 }}>Enable collectible minting</span>
+                        </div>
+
+                        {form.collectibleEnabled && (
+                            <>
+                                <div className="form-group">
+                                    <label className="form-label">Max Supply</label>
+                                    <input type="number" className="form-input"
+                                        value={form.collectibleMaxSupply}
+                                        onChange={e => setForm({ ...form, collectibleMaxSupply: Math.max(0, parseInt(e.target.value) || 0) })}
+                                        min={0} />
+                                    <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                        Maximum number of collectible mints. Set 0 for unlimited.
+                                    </p>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="form-label">Mint Price (XRGE)</label>
+                                    <input type="number" className="form-input"
+                                        value={form.collectibleMintPrice}
+                                        onChange={e => setForm({ ...form, collectibleMintPrice: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                        min={0} step={0.1} />
+                                    <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                        Price per mint in XRGE. Revenue goes to the artist.
+                                    </p>
+                                </div>
+
+                                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <label style={{
+                                        position: 'relative', display: 'inline-block', width: 44, height: 24,
+                                        cursor: 'pointer',
+                                    }}>
+                                        <input type="checkbox" checked={form.collectibleTokenGate}
+                                            onChange={e => setForm({ ...form, collectibleTokenGate: e.target.checked })}
+                                            style={{ opacity: 0, width: 0, height: 0 }} />
+                                        <span style={{
+                                            position: 'absolute', inset: 0, borderRadius: 12,
+                                            background: form.collectibleTokenGate ? 'var(--accent)' : 'var(--border)',
+                                            transition: 'background .2s',
+                                        }}>
+                                            <span style={{
+                                                position: 'absolute', left: form.collectibleTokenGate ? 22 : 2,
+                                                top: 2, width: 20, height: 20, borderRadius: '50%',
+                                                background: '#fff', transition: 'left .2s',
+                                            }} />
+                                        </span>
+                                    </label>
+                                    <span style={{ fontWeight: 500 }}>Token holder discount</span>
+                                </div>
+
+                                {form.collectibleTokenGate && (
+                                    <div className="form-group">
+                                        <label className="form-label">Discount for token holders (%)</label>
+                                        <input type="number" className="form-input"
+                                            value={form.collectibleDiscountPct}
+                                            onChange={e => setForm({ ...form, collectibleDiscountPct: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
+                                            min={0} max={100} />
+                                        <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                            100% = free mint for holders. 50% = half price. Holders must have at least 1 song token.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div style={{
+                                    padding: '14px 16px', borderRadius: 'var(--radius)',
+                                    background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                                    marginBottom: 16,
+                                }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                                        Collectible Preview
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                        <div>
+                                            <div className="text-xs text-muted">Supply</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                                {form.collectibleMaxSupply > 0 ? form.collectibleMaxSupply.toLocaleString() : 'Unlimited'}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted">Public Price</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 600 }}>{form.collectibleMintPrice} XRGE</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted">Holder Price</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                                {form.collectibleTokenGate
+                                                    ? form.collectibleDiscountPct >= 100
+                                                        ? 'Free'
+                                                        : `${(form.collectibleMintPrice * (1 - form.collectibleDiscountPct / 100)).toFixed(2)} XRGE`
+                                                    : `${form.collectibleMintPrice} XRGE`}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted">Revenue To</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 600 }}>Artist</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </>
+                )}
+
+                {/* ── Step 4: Publish ───────────────────────── */}
+                {step === 4 && (
                     <>
                         <h3 style={{ marginBottom: 16 }}>
                             <Send size={18} style={{ verticalAlign: -3, marginRight: 6 }} />
@@ -947,9 +1128,22 @@ export default function UploadPage() {
                                     })()} XRGE/token
                                 </span>
                             </div>
+                            {form.collectibleEnabled && (
+                                <>
+                                    <div className="chain-info-row">
+                                        <span className="chain-info-label">Collectible</span>
+                                        <span className="chain-info-value">
+                                            {form.collectibleMaxSupply > 0 ? `${form.collectibleMaxSupply} max` : 'Unlimited'} @ {form.collectibleMintPrice} XRGE
+                                            {form.collectibleTokenGate && form.collectibleDiscountPct >= 100 ? ' (free for holders)' : form.collectibleTokenGate ? ` (${form.collectibleDiscountPct}% off for holders)` : ''}
+                                        </span>
+                                    </div>
+                                </>
+                            )}
                             <div className="chain-info-row">
                                 <span className="chain-info-label">Transactions</span>
-                                <span className="chain-info-value">createCollection + mint + createToken + createPool</span>
+                                <span className="chain-info-value">
+                                    createCollection + mint + createToken + createPool{form.collectibleEnabled ? ' + collectibleCollection' : ''}
+                                </span>
                             </div>
                             <div className="chain-info-row">
                                 <span className="chain-info-label">Est. Cost</span>
@@ -982,7 +1176,7 @@ export default function UploadPage() {
                 )}
 
                 {/* ── Navigation ─────────────────────────────── */}
-                {step < 3 && (
+                {step < 4 && (
                     <div className="wizard-nav">
                         {step > 0 && (
                             <button className="btn btn-secondary" onClick={() => setStep(s => s - 1)}>

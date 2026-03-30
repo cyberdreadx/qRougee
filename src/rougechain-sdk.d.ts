@@ -14,6 +14,12 @@ declare module '@rougechain/sdk' {
         max_supply?: number;
         royalty_bps?: number;
         description?: string;
+        minted: number;
+        public_mint?: boolean;
+        mint_price?: number;
+        token_gate_symbol?: string;
+        token_gate_amount?: number;
+        discount_pct?: number;
     }
 
     export interface NftToken {
@@ -58,7 +64,7 @@ declare module '@rougechain/sdk' {
             getCollection(id: string): Promise<NftCollection>;
             getTokens(collectionId: string, opts?: { limit?: number }): Promise<{ tokens: NftToken[] } & NftToken[]>;
             getByOwner(publicKey: string): Promise<NftToken[]>;
-            createCollection(keys: WalletKeys, opts: { symbol: string; name: string; maxSupply: number; royaltyBps: number; description?: string; image?: string }): Promise<{ success: boolean; error?: string; data?: unknown }>;
+            createCollection(keys: WalletKeys, opts: { symbol: string; name: string; maxSupply?: number; royaltyBps: number; description?: string; image?: string; publicMint?: boolean; mintPrice?: number; tokenGateSymbol?: string; tokenGateAmount?: number; discountPct?: number }): Promise<{ success: boolean; error?: string; data?: unknown }>;
             waitForCollection(id: string, opts?: { timeoutMs?: number; pollMs?: number }): Promise<void>;
             mint(keys: WalletKeys, opts: { collectionId: string; name: string; metadataUri: string; attributes?: Record<string, unknown> }): Promise<{ success: boolean; error?: string; data?: unknown }>;
         };
