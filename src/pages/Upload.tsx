@@ -21,6 +21,8 @@ interface MintForm {
     royaltySplit: RoyaltySplit;
     playGateThreshold: number;
     premiumThreshold: number;
+    poolPct: number;
+    poolXrge: number;
 }
 
 interface Draft {
@@ -61,6 +63,8 @@ const DEFAULT_FORM: MintForm = {
     royaltySplit: { artist: 60, tokenHolders: 25, collaborators: 10, platform: 5 },
     playGateThreshold: 50,
     premiumThreshold: 250,
+    poolPct: 10,
+    poolXrge: 500,
 };
 
 export default function UploadPage() {
@@ -314,8 +318,8 @@ export default function UploadPage() {
             // Step 6: Create DEX liquidity pool so the token is immediately tradeable
             setMintStep('Creating liquidity pool...');
             try {
-                const poolTokens = Math.floor(form.tokenSupply * 0.1);
-                const poolXrge = Math.max(10, Math.floor(poolTokens / 1000));
+                const poolTokens = Math.floor(form.tokenSupply * (form.poolPct / 100));
+                const poolXrge = Math.max(10, form.poolXrge);
                 const poolOpts = { tokenA: 'XRGE', tokenB: tokenSymbol, amountA: poolXrge, amountB: poolTokens };
                 if (isExtensionWallet) {
                     await ext.dexCreatePool(walletKeys.publicKey, poolOpts);
@@ -802,6 +806,77 @@ export default function UploadPage() {
                                 Hold this many tokens to unlock stems, remixes, and behind-the-scenes content.
                             </p>
                         </div>
+
+                        <h3 style={{ marginTop: 32, marginBottom: 16 }}>
+                            <Coins size={18} style={{ verticalAlign: -3, marginRight: 6 }} />
+                            Liquidity Pool
+                        </h3>
+                        <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+                            A DEX pool makes your token tradeable immediately after launch. You set how many tokens
+                            go into the pool and how much XRGE to pair them with — this determines the starting price.
+                        </p>
+
+                        <div className="form-group">
+                            <label className="form-label">% of supply into pool</label>
+                            <input type="number" className="form-input"
+                                value={form.poolPct}
+                                onChange={e => setForm({ ...form, poolPct: Math.min(50, Math.max(1, parseInt(e.target.value) || 1)) })}
+                                min={1} max={50} />
+                            <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                {Math.floor(form.tokenSupply * (form.poolPct / 100)).toLocaleString()} tokens will go into the pool ({form.poolPct}% of {form.tokenSupply.toLocaleString()}).
+                                The rest stay in your wallet.
+                            </p>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">XRGE to pair</label>
+                            <input type="number" className="form-input"
+                                value={form.poolXrge}
+                                onChange={e => setForm({ ...form, poolXrge: Math.max(10, parseInt(e.target.value) || 10) })}
+                                min={10} />
+                            <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                More XRGE = higher starting price and more stable trading. This comes from your wallet balance.
+                            </p>
+                        </div>
+
+                        {(() => {
+                            const poolTokens = Math.floor(form.tokenSupply * (form.poolPct / 100));
+                            const pricePerToken = poolTokens > 0 ? form.poolXrge / poolTokens : 0;
+                            const fdv = pricePerToken * form.tokenSupply;
+                            return (
+                                <div style={{
+                                    padding: '14px 16px', borderRadius: 'var(--radius)',
+                                    background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                                    marginBottom: 16,
+                                }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                                        Pool Preview
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                        <div>
+                                            <div className="text-xs text-muted">Starting Price</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                                {pricePerToken >= 0.001 ? pricePerToken.toFixed(4) : pricePerToken.toExponential(2)} XRGE
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted">Fully Diluted Value</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                                {fdv >= 1 ? fdv.toLocaleString(undefined, { maximumFractionDigits: 0 }) : fdv.toFixed(4)} XRGE
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted">Pool Tokens</div>
+                                            <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{poolTokens.toLocaleString()}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted">Pool XRGE</div>
+                                            <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{form.poolXrge.toLocaleString()}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </>
                 )}
 
@@ -839,12 +914,27 @@ export default function UploadPage() {
                                 </span>
                             </div>
                             <div className="chain-info-row">
+                                <span className="chain-info-label">Pool Seed</span>
+                                <span className="chain-info-value">
+                                    {Math.floor(form.tokenSupply * (form.poolPct / 100)).toLocaleString()} tokens + {form.poolXrge.toLocaleString()} XRGE
+                                </span>
+                            </div>
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Starting Price</span>
+                                <span className="chain-info-value">
+                                    {(() => {
+                                        const p = form.poolXrge / Math.floor(form.tokenSupply * (form.poolPct / 100));
+                                        return p >= 0.001 ? p.toFixed(4) : p.toExponential(2);
+                                    })()} XRGE/token
+                                </span>
+                            </div>
+                            <div className="chain-info-row">
                                 <span className="chain-info-label">Transactions</span>
-                                <span className="chain-info-value">createCollection + mint + createToken</span>
+                                <span className="chain-info-value">createCollection + mint + createToken + createPool</span>
                             </div>
                             <div className="chain-info-row">
                                 <span className="chain-info-label">Est. Cost</span>
-                                <span className="chain-info-value">~1.5 XRGE (3 transactions)</span>
+                                <span className="chain-info-value">~2 XRGE fees + {form.poolXrge} XRGE for pool</span>
                             </div>
                         </div>
 
