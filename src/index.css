@@ -925,7 +925,7 @@ h4 {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font-size: 0.875rem;
+  font-size: 16px;
   background: var(--bg);
   outline: none;
   transition: border-color var(--transition);
@@ -2428,7 +2428,7 @@ textarea.form-input {
 
   .form-input {
     padding: 11px 12px;
-    font-size: 0.8125rem;
+    font-size: 16px;
   }
 
   .form-label {

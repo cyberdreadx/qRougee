@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowLeftRight, Loader, Coins, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
@@ -26,12 +27,13 @@ interface PoolInfo {
 }
 
 export default function TradePage() {
-    const { isConnected, connect, balance, walletKeys, isExtensionWallet } = useWallet();
+    const [searchParams] = useSearchParams();
+    const { isConnected, connect, balance, walletKeys, isExtensionWallet, refreshBalance } = useWallet();
     const rc = useRougeChain();
     const { tracks } = useNftTracks();
-    const [tokenSymbol, setTokenSymbol] = useState('');
+    const [tokenSymbol, setTokenSymbol] = useState(searchParams.get('token') || '');
     const [amount, setAmount] = useState('');
-    const [direction, setDirection] = useState<'buy' | 'sell'>('buy');
+    const [direction, setDirection] = useState<'buy' | 'sell'>((searchParams.get('direction') as 'buy' | 'sell') || 'buy');
     const [isSwapping, setIsSwapping] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -208,8 +210,8 @@ export default function TradePage() {
 
             setAmount('');
             setQuote(null);
-            // Refresh data
             fetchTokensAndPools();
+            refreshBalance();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Transaction failed');
         } finally {
@@ -244,6 +246,7 @@ export default function TradePage() {
             setSuccess(`Pool created: ${xrgeAmt.toLocaleString()} XRGE + ${tokenAmt.toLocaleString()} ${tokenSymbol}`);
             setPoolTokenAmt('');
             fetchTokensAndPools();
+            refreshBalance();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create pool');
         } finally {

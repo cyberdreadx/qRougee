@@ -169,7 +169,7 @@ export default function TrackDetail() {
                             {isCurrentPlaying ? 'Pause' : 'Play'}
                         </button>
                         {track.tokenSymbol && (
-                            <Link to="/trade" className="btn btn-secondary">
+                            <Link to={`/trade?token=${encodeURIComponent(track.tokenSymbol)}&direction=buy`} className="btn btn-secondary">
                                 <Coins size={16} /> Buy {track.tokenSymbol}
                             </Link>
                         )}
