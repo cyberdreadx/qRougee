@@ -186,11 +186,11 @@ export default function UploadPage() {
                 .toUpperCase()
                 .slice(0, 10) || 'TRACK';
 
-            // Collection symbol (derived from title, max 8 chars)
-            const collectionSymbol = form.title
+            const baseCollectionSym = form.title
                 .replace(/[^a-zA-Z0-9]/g, '')
                 .toUpperCase()
-                .slice(0, 8) || 'TRACK';
+                .slice(0, 5) || 'TRACK';
+            const collectionSymbol = `${baseCollectionSym}NFT`;
 
             // Step 1: Upload audio + cover to IPFS as a folder
             setMintStep('Uploading assets to IPFS...');
