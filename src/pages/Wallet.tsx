@@ -15,6 +15,8 @@ import * as ext from '../utils/extensionSigner';
 interface TokenBalance {
     symbol: string;
     balance: number;
+    name?: string;
+    image?: string;
 }
 
 interface OwnedNft {
@@ -152,7 +154,12 @@ export default function WalletPage() {
                     if (!sym) continue;
                     try {
                         const bal = await rc.getTokenBalance(publicKey, sym);
-                        if (bal && bal > 0) balances.push({ symbol: sym, balance: bal });
+                        if (bal && bal > 0) balances.push({
+                            symbol: sym,
+                            balance: bal,
+                            name: (raw.name as string) || undefined,
+                            image: (raw.image as string) || undefined,
+                        });
                     } catch { /* token not held */ }
                 }
                 setTokens(balances);
@@ -522,15 +529,21 @@ export default function WalletPage() {
                                 marginBottom: 8,
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div style={{
-                                        width: 36, height: 36, borderRadius: '50%', display: 'flex',
-                                        alignItems: 'center', justifyContent: 'center',
-                                        background: 'var(--border)', fontWeight: 700, fontSize: '0.7rem',
-                                        color: 'var(--fg)',
-                                    }}>{tok.symbol.slice(0, 2)}</div>
+                                    {tok.image ? (
+                                        <img src={tok.image} alt={tok.symbol} style={{
+                                            width: 36, height: 36, borderRadius: '50%', objectFit: 'cover',
+                                        }} />
+                                    ) : (
+                                        <div style={{
+                                            width: 36, height: 36, borderRadius: '50%', display: 'flex',
+                                            alignItems: 'center', justifyContent: 'center',
+                                            background: 'var(--border)', fontWeight: 700, fontSize: '0.7rem',
+                                            color: 'var(--fg)',
+                                        }}>{tok.symbol.slice(0, 2)}</div>
+                                    )}
                                     <div>
                                         <div style={{ fontWeight: 600 }}>{tok.symbol}</div>
-                                        <div className="text-xs text-muted">Song Token</div>
+                                        <div className="text-xs text-muted">{tok.name || 'Token'}</div>
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right', fontWeight: 600 }}>
