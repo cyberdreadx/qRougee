@@ -10,6 +10,7 @@ interface SongToken {
     symbol: string;
     name: string;
     supply: number;
+    myBalance: number;
     image?: string;
     creator?: string;
     hasPool?: boolean;
@@ -52,6 +53,16 @@ export default function TradePage() {
                     .filter(Boolean)
             );
 
+            // Fetch user's token balances if connected
+            let myTokenBals: Record<string, number> = {};
+            if (walletKeys?.publicKey) {
+                try {
+                    const balResp = await rc.getBalance(walletKeys.publicKey) as Record<string, unknown>;
+                    const tb = (balResp.token_balances || {}) as Record<string, number>;
+                    myTokenBals = tb;
+                } catch { /* ignore */ }
+            }
+
             // Fetch all tokens on-chain
             const allTokens = await rc.getTokens();
             const tokens: SongToken[] = (allTokens || [])
@@ -62,10 +73,12 @@ export default function TradePage() {
                 })
                 .map((t: Record<string, unknown>) => {
                     const raw = t;
+                    const sym = String(raw.symbol || '');
                     return {
-                        symbol: String(raw.symbol || ''),
+                        symbol: sym,
                         name: String(raw.name || raw.token_name || raw.symbol || ''),
                         supply: Number(raw.total_supply || raw.totalSupply || raw.initial_supply || 0),
+                        myBalance: myTokenBals[sym] || 0,
                         image: raw.image ? String(raw.image) : undefined,
                         creator: raw.creator ? String(raw.creator) : undefined,
                     };
@@ -113,7 +126,7 @@ export default function TradePage() {
         } finally {
             setLoading(false);
         }
-    }, [rc, tracks]);
+    }, [rc, tracks, walletKeys]);
 
     useEffect(() => {
         fetchTokensAndPools();
@@ -213,8 +226,9 @@ export default function TradePage() {
             return;
         }
         const tok = songTokens.find(t => t.symbol === tokenSymbol);
-        if (tok && tokenAmt > tok.supply) {
-            setError(`Can't seed more than total supply (${tok.supply.toLocaleString()} ${tokenSymbol})`);
+        const available = tok ? (tok.myBalance || tok.supply) : 0;
+        if (tok && available > 0 && tokenAmt > available) {
+            setError(`Can't seed more than your balance (${available.toLocaleString()} ${tokenSymbol})`);
             return;
         }
         setIsSwapping(true);
@@ -404,23 +418,24 @@ export default function TradePage() {
                             <div className="form-group">
                                 <label className="form-label">{tokenSymbol} tokens to pair</label>
                                 <input type="number" className="form-input"
-                                    placeholder={`Max: ${(songTokens.find(t => t.symbol === tokenSymbol)?.supply || 0).toLocaleString()}`}
+                                    placeholder={`Max: ${(songTokens.find(t => t.symbol === tokenSymbol)?.myBalance || 0).toLocaleString()}`}
                                     value={poolTokenAmt}
                                     onChange={e => setPoolTokenAmt(e.target.value)}
                                     min={1} />
                                 {(() => {
                                     const tok = songTokens.find(t => t.symbol === tokenSymbol);
-                                    return tok ? (
+                                    const available = tok ? (tok.myBalance || tok.supply) : 0;
+                                    return tok && available > 0 ? (
                                         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                                             {[10, 25, 50].map(pct => (
                                                 <button key={pct} className="btn btn-secondary"
                                                     style={{ fontSize: '0.7rem', padding: '3px 8px' }}
-                                                    onClick={() => setPoolTokenAmt(String(Math.floor(tok.supply * pct / 100)))}>
+                                                    onClick={() => setPoolTokenAmt(String(Math.floor(available * pct / 100)))}>
                                                     {pct}%
                                                 </button>
                                             ))}
                                             <span className="text-xs text-muted" style={{ alignSelf: 'center', marginLeft: 4 }}>
-                                                of {tok.supply.toLocaleString()} supply
+                                                of {available.toLocaleString()} {tok.myBalance > 0 ? 'held' : 'supply'}
                                             </span>
                                         </div>
                                     ) : null;
@@ -531,9 +546,12 @@ export default function TradePage() {
                                         </div>
                                         <div style={{ textAlign: 'right' }}>
                                             <div className="text-xs" style={{ fontWeight: 600 }}>
-                                                {t.supply > 0 ? t.supply.toLocaleString() : '—'}
+                                                {t.myBalance > 0 ? t.myBalance.toLocaleString() : (t.supply > 0 ? t.supply.toLocaleString() : '—')}
                                             </div>
                                             <div className="text-xs text-muted">
+                                                {t.myBalance > 0 ? 'You hold' : t.supply > 0 ? 'Supply' : ''}
+                                            </div>
+                                            <div className="text-xs text-muted" style={{ marginTop: 2 }}>
                                                 {t.hasPool || pool ? (
                                                     <span style={{ color: '#22c55e' }}>● Pool</span>
                                                 ) : (
