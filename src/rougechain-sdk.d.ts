@@ -67,6 +67,7 @@ declare module '@rougechain/sdk' {
             createCollection(keys: WalletKeys, opts: { symbol: string; name: string; maxSupply?: number; royaltyBps: number; description?: string; image?: string; publicMint?: boolean; mintPrice?: number; tokenGateSymbol?: string; tokenGateAmount?: number; discountPct?: number }): Promise<{ success: boolean; error?: string; data?: unknown }>;
             waitForCollection(id: string, opts?: { timeoutMs?: number; pollMs?: number }): Promise<void>;
             mint(keys: WalletKeys, opts: { collectionId: string; name: string; metadataUri: string; attributes?: Record<string, unknown> }): Promise<{ success: boolean; error?: string; data?: unknown }>;
+            burn(keys: WalletKeys, opts: { collectionId: string; tokenId: string }): Promise<{ success: boolean; error?: string; data?: unknown }>;
         };
 
         dex: {
