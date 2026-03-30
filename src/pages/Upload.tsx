@@ -315,6 +315,23 @@ export default function UploadPage() {
                 throw new Error(tokenResult.error || 'Failed to create song token');
             }
 
+            // Wait for the token to be mined before creating the pool
+            setMintStep('Waiting for token to confirm...');
+            {
+                const deadline = Date.now() + 30_000;
+                let confirmed = false;
+                while (Date.now() < deadline) {
+                    try {
+                        const r = await fetch(`https://testnet.rougechain.io/api/token/${tokenSymbol}/metadata`);
+                        if (r.ok) { confirmed = true; break; }
+                    } catch { /* not mined yet */ }
+                    await new Promise(r => setTimeout(r, 1_500));
+                }
+                if (!confirmed) {
+                    console.warn('Token not confirmed after 30s — trying pool creation anyway');
+                }
+            }
+
             // Step 6: Create DEX liquidity pool so the token is immediately tradeable
             setMintStep('Creating liquidity pool...');
             try {
@@ -326,8 +343,10 @@ export default function UploadPage() {
                 } else {
                     await rc.dex.createPool(walletKeys, poolOpts);
                 }
-            } catch {
-                console.warn('Pool creation failed — token is live but not yet tradeable');
+            } catch (poolErr) {
+                console.warn('Pool creation failed:', poolErr);
+                setMintStep('Token created! Pool will need to be created manually from the Trade page.');
+                await new Promise(r => setTimeout(r, 2000));
             }
 
             setMintResult({ collectionId, tokenId: '1', tokenSymbol });
