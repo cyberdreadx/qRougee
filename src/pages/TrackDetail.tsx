@@ -47,7 +47,7 @@ export default function TrackDetail() {
         token_gate_symbol?: string; token_gate_amount?: number; discount_pct?: number;
         image?: string;
     } | null>(null);
-    const [collectibleLoading, setCollectibleLoading] = useState(false);
+    const [, setCollectibleLoading] = useState(false);
     const [collectibleMinting, setCollectibleMinting] = useState(false);
     const [collectibleMintResult, setCollectibleMintResult] = useState<string | null>(null);
 
