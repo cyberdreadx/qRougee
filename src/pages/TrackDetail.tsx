@@ -15,7 +15,7 @@ export default function TrackDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { play, pause, currentTrack, isPlaying } = usePlayer();
-    const { allTracksUnfiltered: nftTracks } = useNftTracks();
+    const { allTracksUnfiltered: nftTracks, isLoading: tracksLoading, refetch: refetchTracks } = useNftTracks();
     const { walletKeys, isExtensionWallet } = useWallet();
     const rc = useRougeChain();
     const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 60, duration: 500, deps: [id, nftTracks.length] });
@@ -47,6 +47,9 @@ export default function TrackDetail() {
     const [sellLoading, setSellLoading] = useState(false);
     const [sellResult, setSellResult] = useState<string | null>(null);
     const [saleRoyaltyBps, setSaleRoyaltyBps] = useState<number | null>(null);
+
+    // A freshly minted track can lag chain indexing; retry a few times before "not found".
+    const [notFoundRetries, setNotFoundRetries] = useState(0);
 
     // Collectible mint state
     const [collectibleCol, setCollectibleCol] = useState<{
@@ -124,6 +127,17 @@ export default function TrackDetail() {
             .then(col => setSaleRoyaltyBps(col?.royalty_bps ?? 0))
             .catch(() => setSaleRoyaltyBps(0));
     }, [sellOpen, track?.collectionId, saleRoyaltyBps, rc]);
+
+    // If the track isn't in the loaded set (e.g. just minted, indexing lag),
+    // refetch a few times with a delay before concluding it doesn't exist.
+    useEffect(() => {
+        if (track || tracksLoading || !id || notFoundRetries >= 3) return;
+        const t = setTimeout(() => {
+            setNotFoundRetries(n => n + 1);
+            refetchTracks();
+        }, 2000);
+        return () => clearTimeout(t);
+    }, [track, tracksLoading, id, notFoundRetries, refetchTracks]);
 
     useEffect(() => {
         if (!isCreator || !walletKeys || !id) return;
@@ -255,6 +269,8 @@ export default function TrackDetail() {
         setTipLoading(false);
     };
 
+    const stillSearching = !track && (tracksLoading || notFoundRetries < 3);
+
     if (!track) {
         return (
             <div className="page-container">
@@ -262,7 +278,14 @@ export default function TrackDetail() {
                     <ArrowLeft size={16} /> Back
                 </button>
                 <div className="empty-state" style={{ paddingTop: 80 }}>
-                    <h3>Track not found</h3>
+                    {stillSearching ? (
+                        <>
+                            <Loader size={28} style={{ animation: 'spin 1s linear infinite' }} />
+                            <h3 style={{ marginTop: 12 }}>Loading track…</h3>
+                        </>
+                    ) : (
+                        <h3>Track not found</h3>
+                    )}
                 </div>
             </div>
         );
