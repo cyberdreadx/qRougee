@@ -1,7 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { RougeChain } from '@rougechain/sdk';
-
-const TESTNET_URL = 'https://testnet.rougechain.io/api';
+import { getApiBase } from '../config/network';
 
 interface RougeChainContextType {
     rc: RougeChain;
@@ -10,7 +9,9 @@ interface RougeChainContextType {
 const RougeChainContext = createContext<RougeChainContextType | null>(null);
 
 export function RougeChainProvider({ children }: { children: ReactNode }) {
-    const rc = useMemo(() => new RougeChain(TESTNET_URL), []);
+    // Built once per load against the selected network; NetworkSwitcher reloads
+    // the app on change so this re-instantiates against the new endpoint.
+    const rc = useMemo(() => new RougeChain(getApiBase()), []);
 
     return (
         <RougeChainContext.Provider value={{ rc }}>

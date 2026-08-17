@@ -4,6 +4,7 @@ import { Home, Search, Library, Upload, Wallet, X, ArrowLeftRight, TrendingUp, S
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useSidebar } from '../hooks/useSidebar';
 import { useTheme } from '../hooks/useTheme';
+import NetworkSwitcher from './NetworkSwitcher';
 
 export default function Sidebar() {
     const { isConnected, publicKey, address, isLoading, connectExtension, connectFromKeys, extensionDetected } = useWallet();
@@ -129,6 +130,8 @@ export default function Sidebar() {
                         Explorer
                     </NavLink>
                 </nav>
+
+                <NetworkSwitcher />
 
                 <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
                     {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}

@@ -9,7 +9,7 @@
  * Provides drop-in replacements for @rougechain/sdk write methods.
  */
 
-const API_BASE = 'https://testnet.rougechain.io/api';
+import { getApiBase } from '../config/network';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -78,7 +78,7 @@ async function signPayload(payload: Payload, publicKey: string): Promise<SignedT
 async function submitSigned(endpoint: string, signedTx: SignedTx): Promise<ApiResult> {
     let res: Response;
     try {
-        res = await fetch(`${API_BASE}${endpoint}`, {
+        res = await fetch(`${getApiBase()}${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(signedTx),
