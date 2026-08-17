@@ -68,6 +68,7 @@ declare module '@rougechain/sdk' {
             waitForCollection(id: string, opts?: { timeoutMs?: number; pollMs?: number }): Promise<void>;
             mint(keys: WalletKeys, opts: { collectionId: string; name: string; metadataUri: string; attributes?: Record<string, unknown> }): Promise<{ success: boolean; error?: string; data?: unknown }>;
             burn(keys: WalletKeys, opts: { collectionId: string; tokenId: string }): Promise<{ success: boolean; error?: string; data?: unknown }>;
+            transfer(keys: WalletKeys, opts: { collectionId: string; tokenId: string | number; to: string; salePrice?: number }): Promise<{ success: boolean; error?: string; data?: unknown }>;
         };
 
         dex: {

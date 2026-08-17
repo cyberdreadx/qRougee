@@ -278,3 +278,18 @@ export async function nftBurn(publicKey: string, collectionId: string, tokenId: 
     };
     return signAndSubmit('/v2/nft/burn', payload, publicKey);
 }
+
+export async function nftTransfer(
+    publicKey: string,
+    collectionId: string,
+    tokenId: string,
+    to: string,
+    salePrice?: number
+): Promise<ApiResult> {
+    const payload: Payload = {
+        type: 'nft_transfer', from: publicKey, collectionId, tokenId, to, fee: 1,
+        ...(salePrice != null ? { salePrice } : {}),
+        timestamp: Date.now(), nonce: generateNonce(),
+    };
+    return signAndSubmit('/v2/nft/transfer', payload, publicKey);
+}

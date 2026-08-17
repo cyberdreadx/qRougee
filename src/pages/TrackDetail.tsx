@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { Play, Pause, ArrowLeft, Coins, Shield, Lock, ExternalLink, Heart, MessageCircle, Send, Trash2, Loader, EyeOff, Eye, Flame, Image as ImageIcon } from 'lucide-react';
+import { Play, Pause, ArrowLeft, Coins, Shield, Lock, ExternalLink, Heart, MessageCircle, Send, Trash2, Loader, EyeOff, Eye, Flame, Image as ImageIcon, Tag } from 'lucide-react';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { useWallet } from '../hooks/useWallet';
@@ -39,6 +39,14 @@ export default function TrackDetail() {
     const [hideLoading, setHideLoading] = useState(false);
     const [burnConfirmOpen, setBurnConfirmOpen] = useState(false);
     const [burnLoading, setBurnLoading] = useState(false);
+
+    // Sell / transfer state (priced transfer — declares salePrice so the chain pays royalties)
+    const [sellOpen, setSellOpen] = useState(false);
+    const [sellTo, setSellTo] = useState('');
+    const [sellPrice, setSellPrice] = useState('');
+    const [sellLoading, setSellLoading] = useState(false);
+    const [sellResult, setSellResult] = useState<string | null>(null);
+    const [saleRoyaltyBps, setSaleRoyaltyBps] = useState<number | null>(null);
 
     // Collectible mint state
     const [collectibleCol, setCollectibleCol] = useState<{
@@ -107,6 +115,15 @@ export default function TrackDetail() {
     };
 
     const isCreator = !!(walletKeys && track?.creator && walletKeys.publicKey === track.creator);
+    const isOwner = !!(walletKeys && track?.owner && walletKeys.publicKey === track.owner);
+
+    // Load the collection royalty once, to preview what the sale will pay the creator.
+    useEffect(() => {
+        if (!sellOpen || !track?.collectionId || saleRoyaltyBps != null) return;
+        rc.nft.getCollection(track.collectionId)
+            .then(col => setSaleRoyaltyBps(col?.royalty_bps ?? 0))
+            .catch(() => setSaleRoyaltyBps(0));
+    }, [sellOpen, track?.collectionId, saleRoyaltyBps, rc]);
 
     useEffect(() => {
         if (!isCreator || !walletKeys || !id) return;
@@ -141,6 +158,31 @@ export default function TrackDetail() {
         } catch { /* ignore */ }
         setBurnLoading(false);
         setBurnConfirmOpen(false);
+    };
+
+    const handleSell = async () => {
+        if (!walletKeys || !track?.collectionId || !track?.tokenId || sellLoading) return;
+        const to = sellTo.trim();
+        const price = parseFloat(sellPrice);
+        if (!to) { setSellResult('Enter a recipient address'); return; }
+        if (isNaN(price) || price < 0) { setSellResult('Enter a valid sale price'); return; }
+        setSellLoading(true);
+        setSellResult(null);
+        try {
+            const tokenIdNum = track.tokenId.replace('tok_', '');
+            const res = isExtensionWallet
+                ? await ext.nftTransfer(walletKeys.publicKey, track.collectionId, tokenIdNum, to, price)
+                : await rc.nft.transfer(walletKeys, { collectionId: track.collectionId, tokenId: tokenIdNum, to, salePrice: price });
+            if (res.success) {
+                setSellResult('Transferred! Redirecting…');
+                setTimeout(() => navigate('/'), 1500);
+            } else {
+                setSellResult((res as { error?: string }).error || 'Transfer failed');
+            }
+        } catch (e) {
+            setSellResult(e instanceof Error ? e.message : 'Transfer failed');
+        }
+        setSellLoading(false);
     };
 
     const handleLike = async () => {
@@ -319,6 +361,91 @@ export default function TrackDetail() {
                                     Yes, Burn Forever
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Owner: sell / transfer (declares a sale price so the chain pays royalties) */}
+                    {isOwner && (
+                        <div style={{ marginTop: 12 }}>
+                            {!sellOpen ? (
+                                <button
+                                    className="btn btn-secondary"
+                                    style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                                    onClick={() => { setSellOpen(true); setSellResult(null); }}
+                                >
+                                    <Tag size={14} /> Sell / Transfer
+                                </button>
+                            ) : (
+                                <div style={{
+                                    padding: 16, border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius)', background: 'var(--surface)',
+                                }}>
+                                    <p style={{ margin: '0 0 12px', fontWeight: 600 }}>Sell / transfer this track NFT</p>
+                                    <div style={{ marginBottom: 10 }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Recipient address</label>
+                                        <input
+                                            className="form-input"
+                                            placeholder="rouge1… buyer address"
+                                            value={sellTo}
+                                            onChange={e => setSellTo(e.target.value)}
+                                            style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
+                                        />
+                                    </div>
+                                    <div style={{ marginBottom: 10 }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Sale price (XRGE)</label>
+                                        <input
+                                            className="form-input"
+                                            type="number"
+                                            min="0"
+                                            placeholder="0"
+                                            value={sellPrice}
+                                            onChange={e => setSellPrice(e.target.value)}
+                                        />
+                                    </div>
+                                    {(() => {
+                                        const price = parseFloat(sellPrice);
+                                        const bps = saleRoyaltyBps ?? 0;
+                                        if (isNaN(price) || price <= 0 || bps <= 0) return null;
+                                        const royalty = (price * bps) / 10000;
+                                        return (
+                                            <p className="text-sm text-muted" style={{ margin: '0 0 12px' }}>
+                                                Creator royalty ({(bps / 100).toFixed(bps % 100 ? 2 : 0)}%):{' '}
+                                                <strong>{royalty.toLocaleString()} XRGE</strong> will be deducted from you
+                                                on top of the 1 XRGE transfer fee.
+                                            </p>
+                                        );
+                                    })()}
+                                    <p className="text-sm text-muted" style={{ margin: '0 0 12px', fontSize: '0.7rem' }}>
+                                        Note: the buyer's payment is arranged separately — this action transfers
+                                        ownership and pays the on-chain royalty. There is no escrow.
+                                    </p>
+                                    {sellResult && (
+                                        <p style={{
+                                            margin: '0 0 12px', fontSize: '0.8rem', fontWeight: 500,
+                                            color: sellResult.includes('Transferred') ? '#16a34a' : '#dc2626',
+                                        }}>
+                                            {sellResult}
+                                        </p>
+                                    )}
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={handleSell}
+                                            disabled={sellLoading || !sellTo.trim() || !(parseFloat(sellPrice) >= 0)}
+                                        >
+                                            {sellLoading ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Tag size={14} />}
+                                            Confirm transfer
+                                        </button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => { setSellOpen(false); setSellResult(null); }}
+                                            disabled={sellLoading}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
