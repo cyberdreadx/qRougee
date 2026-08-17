@@ -36,6 +36,7 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         tokenSymbol: attrs.tokenSymbol || undefined,
         tokenSupply: Number(attrs.tokenSupply) || undefined,
         royaltySplit: attrs.royaltySplit || undefined,
+        royaltyPayees: Array.isArray(attrs.royaltyPayees) ? attrs.royaltyPayees : undefined,
         playGateThreshold: Number(attrs.playGateThreshold) || undefined,
         premiumThreshold: Number(attrs.premiumThreshold) || undefined,
     };

@@ -5,6 +5,17 @@ export interface RoyaltySplit {
   platform: number;
 }
 
+/**
+ * A real, payable collaborator split. Unlike RoyaltySplit (cosmetic categories),
+ * each payee is an actual wallet that receives `pct`% of every royalty payout.
+ * Payees sum to 100.
+ */
+export interface RoyaltyPayee {
+  address: string;
+  name?: string;
+  pct: number;
+}
+
 export interface Track {
   id: string;
   title: string;
@@ -22,6 +33,7 @@ export interface Track {
   tokenSymbol?: string;
   tokenSupply?: number;
   royaltySplit?: RoyaltySplit;
+  royaltyPayees?: RoyaltyPayee[];
   playGateThreshold?: number;
   premiumThreshold?: number;
 }

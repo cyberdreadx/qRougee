@@ -1,6 +1,7 @@
 # Royalty Splits — Implementation Spec
 
-Status: **Draft — gating unknowns RESOLVED (docs updated Mar 2026)**
+Status: **v1 BUILT (creator-wallet + metadata model)** — see §6/§9. Follow-ups: split-table
+integrity contract, accrual auto-tracking, multi-sig custody.
 Owner: —
 Depends on: RougeChain SDK ≥ 1.3.1, updated chain with settable `royaltyRecipient`
 

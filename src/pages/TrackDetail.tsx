@@ -51,6 +51,11 @@ export default function TrackDetail() {
     // A freshly minted track can lag chain indexing; retry a few times before "not found".
     const [notFoundRetries, setNotFoundRetries] = useState(0);
 
+    // Royalty distribution (creator fans out accrued royalties to collaborators)
+    const [distributeAmount, setDistributeAmount] = useState('');
+    const [distributeLoading, setDistributeLoading] = useState(false);
+    const [distributeResult, setDistributeResult] = useState<string | null>(null);
+
     // Collectible mint state
     const [collectibleCol, setCollectibleCol] = useState<{
         collection_id: string; mint_price?: number; public_mint?: boolean;
@@ -197,6 +202,37 @@ export default function TrackDetail() {
             setSellResult(e instanceof Error ? e.message : 'Transfer failed');
         }
         setSellLoading(false);
+    };
+
+    const handleDistribute = async () => {
+        if (!walletKeys || !track?.royaltyPayees?.length || distributeLoading) return;
+        const total = parseFloat(distributeAmount);
+        if (isNaN(total) || total <= 0) { setDistributeResult('Enter an amount to distribute'); return; }
+        setDistributeLoading(true);
+        setDistributeResult(null);
+        const payees = track.royaltyPayees;
+        let paid = 0;
+        const failures: string[] = [];
+        for (const p of payees) {
+            const share = Math.floor((total * p.pct) / 100);
+            if (share <= 0 || !p.address.trim()) continue;
+            try {
+                const res = isExtensionWallet
+                    ? await ext.transfer(walletKeys.publicKey, { to: p.address.trim(), amount: share })
+                    : await rc.transfer(walletKeys, { to: p.address.trim(), amount: share });
+                if (res.success) paid += share;
+                else failures.push(p.name || p.address.slice(0, 10));
+            } catch {
+                failures.push(p.name || p.address.slice(0, 10));
+            }
+        }
+        setDistributeResult(
+            failures.length
+                ? `Sent ${paid} XRGE. Failed: ${failures.join(', ')}`
+                : `Distributed ${paid} XRGE to ${payees.length} collaborator${payees.length > 1 ? 's' : ''}.`
+        );
+        if (!failures.length) setDistributeAmount('');
+        setDistributeLoading(false);
     };
 
     const handleLike = async () => {
@@ -647,6 +683,83 @@ export default function TrackDetail() {
                                 <span><span className="split-dot" style={{ background: '#06b6d4' }} /> Collabs {track.royaltySplit.collaborators}%</span>
                                 <span><span className="split-dot" style={{ background: '#64748b' }} /> Platform {track.royaltySplit.platform}%</span>
                             </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Collaborator royalty splits */}
+            {track.royaltyPayees && track.royaltyPayees.length > 0 && (
+                <div className="section anime-stagger-item" style={{ marginTop: 32 }}>
+                    <h3 style={{ marginBottom: 8 }}>
+                        <Coins size={16} style={{ verticalAlign: -2, marginRight: 6 }} />
+                        Collaborator royalty splits
+                    </h3>
+                    <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+                        Every royalty payout is shared among these collaborators.
+                    </p>
+                    <div className="chain-info" style={{ marginBottom: 16 }}>
+                        {track.royaltyPayees.map((p, i) => (
+                            <div className="chain-info-row" key={i}>
+                                <span className="chain-info-label" style={{ fontFamily: 'monospace' }}>
+                                    {p.name ? `${p.name} · ` : ''}{p.address.slice(0, 10)}…{p.address.slice(-6)}
+                                </span>
+                                <span className="chain-info-value">{p.pct}%</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    {isCreator && (
+                        <div style={{
+                            padding: 16, border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius)', background: 'var(--surface)',
+                        }}>
+                            <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Distribute royalties</p>
+                            <p className="text-sm text-muted" style={{ margin: '0 0 12px', fontSize: '0.72rem' }}>
+                                Enter the total XRGE royalty you've received for this track. It will be split
+                                pro-rata and sent to each collaborator from your wallet.
+                            </p>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                <input
+                                    className="form-input"
+                                    type="number"
+                                    min="0"
+                                    placeholder="Total XRGE to distribute"
+                                    value={distributeAmount}
+                                    onChange={e => setDistributeAmount(e.target.value)}
+                                    style={{ flex: 1 }}
+                                />
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={handleDistribute}
+                                    disabled={distributeLoading || !(parseFloat(distributeAmount) > 0)}
+                                >
+                                    {distributeLoading ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
+                                    Distribute
+                                </button>
+                            </div>
+                            {(() => {
+                                const total = parseFloat(distributeAmount);
+                                if (isNaN(total) || total <= 0) return null;
+                                return (
+                                    <div style={{ marginTop: 10 }}>
+                                        {track.royaltyPayees!.map((p, i) => (
+                                            <div key={i} className="text-xs text-muted" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>{p.name || `${p.address.slice(0, 10)}…`}</span>
+                                                <span>{Math.floor((total * p.pct) / 100)} XRGE</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
+                            {distributeResult && (
+                                <p style={{
+                                    margin: '12px 0 0', fontSize: '0.8rem', fontWeight: 500,
+                                    color: distributeResult.startsWith('Distributed') ? '#16a34a' : '#dc2626',
+                                }}>
+                                    {distributeResult}
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>

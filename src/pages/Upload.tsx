@@ -7,7 +7,7 @@ import {
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { pinFolder, pinJson } from '../utils/pinata';
-import { type RoyaltySplit, GENRES } from '../data/mockData';
+import { type RoyaltySplit, type RoyaltyPayee, GENRES } from '../data/mockData';
 import * as ext from '../utils/extensionSigner';
 
 interface MintForm {
@@ -19,6 +19,7 @@ interface MintForm {
     collaborators: string;
     tokenSupply: number;
     royaltySplit: RoyaltySplit;
+    royaltyPayees: RoyaltyPayee[];
     playGateThreshold: number;
     premiumThreshold: number;
     poolPct: number;
@@ -66,6 +67,7 @@ const DEFAULT_FORM: MintForm = {
     collaborators: '',
     tokenSupply: 1_000_000,
     royaltySplit: { artist: 60, tokenHolders: 25, collaborators: 10, platform: 5 },
+    royaltyPayees: [],
     playGateThreshold: 50,
     premiumThreshold: 250,
     poolPct: 10,
@@ -184,6 +186,21 @@ export default function UploadPage() {
         form.royaltySplit.collaborators +
         form.royaltySplit.platform;
 
+    // Real, payable collaborator splits (per-address).
+    const addPayee = () =>
+        setForm(prev => ({ ...prev, royaltyPayees: [...prev.royaltyPayees, { address: '', pct: 0 }] }));
+    const updatePayee = (i: number, patch: Partial<RoyaltyPayee>) =>
+        setForm(prev => ({
+            ...prev,
+            royaltyPayees: prev.royaltyPayees.map((p, idx) => (idx === i ? { ...p, ...patch } : p)),
+        }));
+    const removePayee = (i: number) =>
+        setForm(prev => ({ ...prev, royaltyPayees: prev.royaltyPayees.filter((_, idx) => idx !== i) }));
+    const payeesTotal = form.royaltyPayees.reduce((s, p) => s + (p.pct || 0), 0);
+    const payeesValid =
+        form.royaltyPayees.length === 0 ||
+        (payeesTotal === 100 && form.royaltyPayees.every(p => p.address.trim() !== ''));
+
     const canProceed = () => {
         if (step === 0) return !!form.title && !!form.artist;
         if (step === 2) return splitTotal === 100;
@@ -261,6 +278,9 @@ export default function UploadPage() {
                 tokenSymbol,
                 tokenSupply: form.tokenSupply,
                 royaltySplit: form.royaltySplit,
+                ...(form.royaltyPayees.length > 0
+                    ? { royaltyPayees: form.royaltyPayees.map(p => ({ address: p.address.trim(), name: p.name?.trim() || undefined, pct: p.pct })) }
+                    : {}),
                 playGateThreshold: form.playGateThreshold,
                 premiumThreshold: form.premiumThreshold,
             };
@@ -852,6 +872,61 @@ export default function UploadPage() {
                         </div>
 
                         <div className="form-group">
+                            <label className="form-label">
+                                Collaborator royalty splits{' '}
+                                <span className="text-xs text-muted">(optional — real per-address payouts)</span>
+                                {form.royaltyPayees.length > 0 && payeesTotal !== 100 && (
+                                    <span style={{ color: '#f87171', marginLeft: 8 }}>
+                                        (total: {payeesTotal}% — must equal 100%)
+                                    </span>
+                                )}
+                            </label>
+                            <p className="text-xs text-muted" style={{ margin: '0 0 10px' }}>
+                                Split each royalty payout among collaborators. Leave empty to keep all royalties
+                                yourself. You distribute accrued royalties from the track page.
+                            </p>
+                            {form.royaltyPayees.map((p, i) => (
+                                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-start' }}>
+                                    <input
+                                        className="form-input"
+                                        placeholder="rouge1… address"
+                                        value={p.address}
+                                        onChange={e => updatePayee(i, { address: e.target.value })}
+                                        style={{ flex: 2, fontFamily: 'monospace', fontSize: '0.72rem' }}
+                                    />
+                                    <input
+                                        className="form-input"
+                                        placeholder="label (optional)"
+                                        value={p.name || ''}
+                                        onChange={e => updatePayee(i, { name: e.target.value })}
+                                        style={{ flex: 1, fontSize: '0.72rem' }}
+                                    />
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        min={0}
+                                        max={100}
+                                        value={p.pct}
+                                        onChange={e => updatePayee(i, { pct: parseInt(e.target.value) || 0 })}
+                                        style={{ width: 70 }}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        onClick={() => removePayee(i)}
+                                        style={{ padding: '6px 10px' }}
+                                        aria-label="Remove collaborator"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                            <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem' }} onClick={addPayee}>
+                                + Add collaborator
+                            </button>
+                        </div>
+
+                        <div className="form-group">
                             <label className="form-label">Play Gate (tokens required for unlimited streaming)</label>
                             <input type="number" className="form-input"
                                 value={form.playGateThreshold}
@@ -1151,9 +1226,14 @@ export default function UploadPage() {
                             </div>
                         </div>
 
+                        {!payeesValid && (
+                            <p className="text-xs" style={{ color: '#f87171', textAlign: 'center', marginBottom: 8 }}>
+                                Collaborator splits must total 100% and every address must be filled in.
+                            </p>
+                        )}
                         <button
                             className="btn btn-primary"
-                            disabled={isMinting}
+                            disabled={isMinting || !payeesValid}
                             onClick={handlePublish}
                             style={{ width: '100%', padding: '14px 20px' }}
                         >
