@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { type WalletKeys } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { pubkeyToAddress, formatAddress } from '../utils/address';
@@ -13,6 +13,8 @@ interface WalletState {
     balance: string;
     isConnected: boolean;
     isLoading: boolean;
+    /** Last connect/extension error surfaced to the UI (null when none) */
+    connectError: string | null;
 }
 
 interface WalletContextType extends WalletState {
@@ -80,21 +82,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [extensionDetected, setExtensionDetected] = useState(false);
     const [isExtensionWallet, setIsExtensionWallet] = useState(false);
 
-    // Detect RougeChain Wallet browser extension / Qwalla dApp browser provider
-    // and auto-connect if available (e.g. when opened inside Qwalla's built-in browser)
-    const autoConnectAttempted = useRef(false);
-
+    // Detect the RougeChain Wallet browser extension / Qwalla dApp browser
+    // provider. We only flip `extensionDetected` here — we do NOT auto-call
+    // provider.connect() on load. The extension only opens its approval popup
+    // in response to a real user gesture, so an auto-fired connect() on page
+    // load just rejects silently. Connection happens when the user clicks the
+    // "Connect Wallet" button.
     useEffect(() => {
         const check = () => {
-            const detected = !!(window as any).rougechain?.isRougeChain;
-            setExtensionDetected(detected);
-            if (detected && !autoConnectAttempted.current) {
-                autoConnectAttempted.current = true;
-                const existing = loadSessionKeys();
-                if (!existing) {
-                    void connectExtensionInternal();
-                }
-            }
+            setExtensionDetected(!!(window as any).rougechain?.isRougeChain);
         };
         check();
         window.addEventListener('rougechain#initialized', check);
@@ -108,6 +104,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         balance: '0',
         isConnected: false,
         isLoading: false,
+        connectError: null,
     });
 
     const fetchBalance = useCallback(async (pubKey: string) => {
@@ -138,6 +135,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
+                connectError: null,
             });
             pubkeyToAddress(keys.publicKey).then(addr => {
                 setState(prev => ({ ...prev, address: addr }));
@@ -166,6 +164,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
+                connectError: null,
             });
 
             // Request initial faucet tokens
@@ -201,6 +200,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
+                connectError: null,
             });
 
             await fetchBalance(keys.publicKey);
@@ -224,13 +224,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             balance: '0',
             isConnected: true,
             isLoading: false,
+            connectError: null,
         });
 
         await fetchBalance(keys.publicKey);
     }, [fetchBalance]);
 
     const connectExtensionInternal = async () => {
-        setState(prev => ({ ...prev, isLoading: true }));
+        setState(prev => ({ ...prev, isLoading: true, connectError: null }));
         try {
             const provider = (window as any).rougechain;
             if (!provider?.isRougeChain) {
@@ -254,11 +255,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 balance: '0',
                 isConnected: true,
                 isLoading: false,
+                connectError: null,
             });
 
             await fetchBalance(result.publicKey);
-        } catch {
-            setState(prev => ({ ...prev, isLoading: false }));
+        } catch (e: any) {
+            // Surface the extension's rejection (e.g. "Wallet is locked or not
+            // set up") instead of failing silently.
+            const message = e?.message || 'Failed to connect the RougeChain Wallet extension';
+            setState(prev => ({ ...prev, isLoading: false, connectError: message }));
         }
     };
 
@@ -290,6 +295,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             balance: '0',
             isConnected: false,
             isLoading: false,
+            connectError: null,
         });
     }, []);
 

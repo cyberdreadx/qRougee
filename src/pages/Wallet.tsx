@@ -39,7 +39,7 @@ interface TxRecord {
 /* ────────────────────────────────────────────────────────── */
 
 export default function WalletPage() {
-    const { isConnected, publicKey, address, mnemonic, balance, walletKeys, connect, connectExtension, connectFromKeys, connectFromMnemonic, extensionDetected, isExtensionWallet, disconnect, requestFaucet, refreshBalance } = useWallet();
+    const { isConnected, publicKey, address, mnemonic, balance, walletKeys, connect, connectExtension, connectFromKeys, connectFromMnemonic, extensionDetected, isExtensionWallet, disconnect, requestFaucet, refreshBalance, connectError } = useWallet();
     const rc = useRougeChain();
 
     const [copied, setCopied] = useState(false);
@@ -294,6 +294,12 @@ export default function WalletPage() {
                                 style={{ gap: 8, padding: '12px 28px', fontSize: '0.95rem' }}>
                                 <Puzzle size={18} /> Connect Extension
                             </button>
+                        )}
+                        {connectError && (
+                            <p className="text-xs" style={{ color: '#ef4444', maxWidth: 360, textAlign: 'center' }}>
+                                {connectError}
+                                {/unlock|locked|not set up/i.test(connectError) && ' — open the RougeChain Wallet extension, unlock it, then try again.'}
+                            </p>
                         )}
                         <div style={{
                             display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
