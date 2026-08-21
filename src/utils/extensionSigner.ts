@@ -64,7 +64,7 @@ async function signPayload(payload: Payload, publicKey: string): Promise<SignedT
 
     let result: any;
     try {
-        result = await provider.signTransaction({ payload, serializedHex });
+        result = await provider.signTransaction(payload);
     } catch (e: any) {
         throw new Error(`Wallet signing rejected: ${e?.message || e}`);
     }
