@@ -40,6 +40,22 @@ interface WalletContextType extends WalletState {
 
 const WalletContext = createContext<WalletContextType | null>(null);
 
+/** The wallet provider the extension / Qwalla dApp browser injects on window. */
+interface InjectedProvider {
+    isRougeChain?: boolean;
+    connect(): Promise<{ publicKey: string }>;
+    signTransaction?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    signAndSendTransaction?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>;
+}
+
+function injectedProvider(): InjectedProvider | undefined {
+    return (window as unknown as { rougechain?: InjectedProvider }).rougechain;
+}
+
+function errMessage(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+}
+
 function truncateKey(key: string): string {
     // rouge1 addresses get special formatting
     if (key.startsWith('rouge1')) return formatAddress(key, 12, 4);
@@ -48,8 +64,15 @@ function truncateKey(key: string): string {
 }
 
 // Session-scoped storage keys — sessionStorage persists across page refresh
-// but auto-clears when the browser tab is closed. This gives us persistence
-// during a session without long-term plaintext storage on disk.
+// but auto-clears when the browser tab is closed.
+//
+// SECURITY TRADE-OFF: for locally-created/imported wallets this holds the raw
+// private key (and mnemonic) in plaintext for the life of the tab, so it is
+// readable by any script running on the page (XSS). We accept this to keep the
+// wallet usable across refreshes without re-prompting; it is never written to
+// localStorage or disk unencrypted (only the public key is), and clears on tab
+// close. For at-rest protection users export an encrypted keystore (useKeystore).
+// Extension wallets never expose their private key here (privateKey stays '').
 const SESSION_KEYS = 'qrougee_session_keys';
 const PUB_KEY_STORAGE = 'qrougee_pubkey';
 
@@ -90,7 +113,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // "Connect Wallet" button.
     useEffect(() => {
         const check = () => {
-            setExtensionDetected(!!(window as any).rougechain?.isRougeChain);
+            setExtensionDetected(!!injectedProvider()?.isRougeChain);
         };
         check();
         window.addEventListener('rougechain#initialized', check);
@@ -127,7 +150,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setWalletKeys(keys);
             const wasExtension = sessionStorage.getItem('qrougee_ext_wallet') === 'true';
             if (wasExtension) setIsExtensionWallet(true);
-            const mnemonic = (keys as any).mnemonic || null;
+            const mnemonic = keys.mnemonic || null;
             setState({
                 publicKey: keys.publicKey,
                 address: null,
@@ -153,7 +176,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const keys: WalletKeys = { publicKey, privateKey };
 
             setWalletKeys(keys);
-            saveSessionKeys({ ...keys, mnemonic } as any);
+            saveSessionKeys({ ...keys, mnemonic });
 
             const addr = await pubkeyToAddress(keys.publicKey);
 
@@ -189,7 +212,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const keys: WalletKeys = { publicKey, privateKey };
 
             setWalletKeys(keys);
-            saveSessionKeys({ ...keys, mnemonic } as any);
+            saveSessionKeys({ ...keys, mnemonic });
 
             const addr = await pubkeyToAddress(keys.publicKey);
 
@@ -233,7 +256,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const connectExtensionInternal = async () => {
         setState(prev => ({ ...prev, isLoading: true, connectError: null }));
         try {
-            const provider = (window as any).rougechain;
+            const provider = injectedProvider();
             if (!provider?.isRougeChain) {
                 throw new Error('RougeChain Wallet extension not found');
             }
@@ -259,10 +282,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             });
 
             await fetchBalance(result.publicKey);
-        } catch (e: any) {
+        } catch (e: unknown) {
             // Surface the extension's rejection (e.g. "Wallet is locked or not
             // set up") instead of failing silently.
-            const message = e?.message || 'Failed to connect the RougeChain Wallet extension';
+            const message = errMessage(e) || 'Failed to connect the RougeChain Wallet extension';
             setState(prev => ({ ...prev, isLoading: false, connectError: message }));
         }
     };
@@ -270,7 +293,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const connectExtension = useCallback(connectExtensionInternal, [fetchBalance]);
 
     const signViaExtension = useCallback(async (payload: Record<string, unknown>): Promise<Record<string, unknown>> => {
-        const provider = (window as any).rougechain;
+        const provider = injectedProvider();
         if (!provider?.isRougeChain) {
             throw new Error('RougeChain Wallet extension not available');
         }
@@ -338,10 +361,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider
 export function useWallet() {
     const ctx = useContext(WalletContext);
     if (!ctx) throw new Error('useWallet must be used within WalletProvider');
     return ctx;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- helper co-located with its provider
 export { truncateKey };

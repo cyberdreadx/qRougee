@@ -23,6 +23,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider
 export function useSidebar() {
     const ctx = useContext(SidebarContext);
     if (!ctx) throw new Error('useSidebar must be used within SidebarProvider');

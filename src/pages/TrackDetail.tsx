@@ -9,7 +9,7 @@ import * as ext from '../utils/extensionSigner';
 import { MOCK_TRACKS, formatDuration } from '../data/mockData';
 import { explorerUrl } from '../utils/explorer';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
-import type { TrackStats, SocialComment } from '@rougechain/sdk';
+import type { TrackStats, SocialComment, NftCollection } from '@rougechain/sdk';
 
 export default function TrackDetail() {
     const { id } = useParams<{ id: string }>();
@@ -63,7 +63,6 @@ export default function TrackDetail() {
         token_gate_symbol?: string; token_gate_amount?: number; discount_pct?: number;
         image?: string;
     } | null>(null);
-    const [, setCollectibleLoading] = useState(false);
     const [collectibleMinting, setCollectibleMinting] = useState(false);
     const [collectibleMintResult, setCollectibleMintResult] = useState<string | null>(null);
 
@@ -77,23 +76,23 @@ export default function TrackDetail() {
             const c = await rc.social.getComments(id, 50, 0);
             setComments(c);
         } catch { /* ignore */ }
-    }, [id, walletKeys?.publicKey, rc]);
+    }, [id, walletKeys, rc]);
 
+    // Fetch-on-mount social stats/comments; loadSocial setStates only after awaiting the network.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { loadSocial(); }, [loadSocial]);
 
     // Look up collectible collection for this track
     useEffect(() => {
         if (!track?.collectionId) return;
-        setCollectibleLoading(true);
         // Collectible collection ID is the same prefix but with COL suffix instead of NFT
         const colId = track.collectionId.replace(/NFT$/, 'COL');
-        if (colId === track.collectionId) { setCollectibleLoading(false); return; }
+        if (colId === track.collectionId) return;
         rc.nft.getCollection(colId)
-            .then((col: any) => {
+            .then((col: NftCollection) => {
                 if (col && col.public_mint) setCollectibleCol(col);
             })
-            .catch(() => {})
-            .finally(() => setCollectibleLoading(false));
+            .catch(() => {});
     }, [track?.collectionId, rc]);
 
     const handleCollectibleMint = async () => {
@@ -114,7 +113,7 @@ export default function TrackDetail() {
                 setCollectibleMintResult('Minted successfully!');
                 setCollectibleCol(prev => prev ? { ...prev, minted: prev.minted + 1 } : prev);
             } else {
-                setCollectibleMintResult((res as any).error || 'Mint failed');
+                setCollectibleMintResult((res as { error?: string }).error || 'Mint failed');
             }
         } catch (e) {
             setCollectibleMintResult(e instanceof Error ? e.message : 'Mint failed');
@@ -243,10 +242,11 @@ export default function TrackDetail() {
                 ? await ext.socialToggleLike(walletKeys.publicKey, id)
                 : await rc.social.toggleLike(walletKeys, id);
             if (res.success) {
+                const r = res as { liked?: boolean; likes?: number };
                 setStats(prev => ({
                     ...prev,
-                    liked: (res as any).liked ?? !prev.liked,
-                    likes: (res as any).likes ?? prev.likes,
+                    liked: r.liked ?? !prev.liked,
+                    likes: r.likes ?? prev.likes,
                 }));
             }
         } catch { /* ignore */ }
@@ -260,8 +260,9 @@ export default function TrackDetail() {
             const res = isExtensionWallet
                 ? await ext.socialPostComment(walletKeys.publicKey, id, commentBody.trim())
                 : await rc.social.postComment(walletKeys, id, commentBody.trim());
-            if (res.success && (res as any).comment) {
-                setComments(prev => [...prev, (res as any).comment!]);
+            const r = res as { comment?: SocialComment };
+            if (res.success && r.comment) {
+                setComments(prev => [...prev, r.comment!]);
                 setCommentBody('');
                 setStats(prev => ({ ...prev, commentCount: prev.commentCount + 1 }));
             }

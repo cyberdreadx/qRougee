@@ -2,8 +2,12 @@ import type { WalletKeys } from '@rougechain/sdk';
 
 /**
  * Encrypted keystore utilities using Web Crypto API (PBKDF2 + AES-GCM).
- * Private keys are NEVER stored in plaintext — they are either in memory
- * or encrypted with a user-provided passphrase.
+ *
+ * This module is the at-rest path: everything it writes to disk (the exported
+ * keystore file) is encrypted with a user-provided passphrase — it never emits
+ * a plaintext private key. Note this is NOT a whole-app guarantee: for session
+ * persistence, useWallet keeps the in-memory key in sessionStorage in plaintext
+ * for the life of the tab (see the SECURITY TRADE-OFF note there).
  */
 
 interface KeystoreFile {

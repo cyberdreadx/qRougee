@@ -39,7 +39,6 @@ export function useAnimeEntrance<T extends HTMLElement>(
         deps = [],
     } = options;
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!root.current) return;
 
@@ -73,6 +72,8 @@ export function useAnimeEntrance<T extends HTMLElement>(
         });
 
         // No scope.revert() — we want elements to keep their final visible state
+        // Caller-supplied `deps` is spread in intentionally; exhaustive-deps can't verify a dynamic list.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selector, delay, duration, staggerMs, translateY, ...deps]);
 
     return root;

@@ -20,6 +20,7 @@ export function RougeChainProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider
 export function useRougeChain(): RougeChain {
     const ctx = useContext(RougeChainContext);
     if (!ctx) throw new Error('useRougeChain must be used within RougeChainProvider');

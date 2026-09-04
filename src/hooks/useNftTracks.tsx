@@ -1,7 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { NftCollection, NftToken } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
-import { MOCK_TRACKS, type Track } from '../data/mockData';
+import { MOCK_TRACKS, type Track, type RoyaltySplit, type RoyaltyPayee } from '../data/mockData';
+
+/** Music metadata we read out of an NFT's free-form `attributes` blob. */
+interface TrackAttrs {
+    artist?: string;
+    duration?: string | number;
+    coverUrl?: string;
+    audioUrl?: string;
+    genre?: string;
+    tokenSymbol?: string;
+    tokenSupply?: string | number;
+    royaltySplit?: RoyaltySplit;
+    royaltyPayees?: RoyaltyPayee[];
+    playGateThreshold?: string | number;
+    premiumThreshold?: string | number;
+}
 
 interface NftTracksState {
     tracks: Track[];
@@ -17,14 +32,14 @@ interface NftTracksState {
  */
 function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
     // Attributes may contain our music metadata
-    const attrs = (token.attributes || {}) as Record<string, any>;
+    const attrs = (token.attributes || {}) as TrackAttrs;
 
     return {
         id: `${token.collection_id}_${token.token_id}`,
         title: token.name || 'Untitled',
         artist: attrs.artist || truncateCreator(token.creator || ''),
         album: collection.name || 'Unknown Collection',
-        duration: parseInt(attrs.duration || '0', 10) || 210,
+        duration: parseInt(String(attrs.duration || '0'), 10) || 210,
         coverUrl: attrs.coverUrl || collection.image || generateCover(token.token_id),
         audioUrl: attrs.audioUrl || '',
         genre: attrs.genre || 'Unknown',
@@ -116,6 +131,9 @@ export function useNftTracks() {
     }, [rc]);
 
     useEffect(() => {
+        // Fetch-on-mount: fetchTracks flips isLoading before awaiting the network,
+        // which is the intended loading UX — not an accidental render cascade.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchTracks();
     }, [fetchTracks]);
 

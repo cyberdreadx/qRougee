@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, ExternalLink, Users, Music, Shield, Clock, Coins, UserPlus, UserCheck, EyeOff } from 'lucide-react';
 import { formatDuration } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
@@ -18,7 +18,7 @@ export default function ArtistProfile() {
     const rc = useRougeChain();
 
     const [followerCount, setFollowerCount] = useState(0);
-    const [_followingCount, setFollowingCount] = useState(0);
+    const [, setFollowingCount] = useState(0);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followLoading, setFollowLoading] = useState(false);
 
@@ -29,6 +29,48 @@ export default function ArtistProfile() {
     const allArtistTracks = allTracksUnfiltered.filter(t => t.artist === artistName);
     const isOwnProfile = !!(walletKeys && allArtistTracks.some(t => t.creator === walletKeys.publicKey));
     const artistTracks = isOwnProfile ? allArtistTracks : tracks.filter(t => t.artist === artistName);
+    // Owner/wallet from the first track — safe (optional chaining) even with no tracks
+    const walletAddress = artistTracks[0]?.owner || 'Unknown';
+
+    // Fetch-on-mount artist stats. Inlined (not a useCallback) because walletAddress
+    // is a locally-derived value the React Compiler can't preserve as a memo dep.
+    // Hooks must run unconditionally, so this effect stays above the early return.
+    useEffect(() => {
+        if (!walletAddress || walletAddress === 'Unknown') return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const s = await rc.social.getArtistStats(walletAddress, walletKeys?.publicKey);
+                if (cancelled) return;
+                setFollowerCount(s.followers);
+                setFollowingCount(s.following);
+                setIsFollowing(s.isFollowing);
+            } catch { /* ignore */ }
+        })();
+        return () => { cancelled = true; };
+    }, [walletAddress, walletKeys, rc]);
+
+    const handleFollow = async () => {
+        if (!walletKeys || !walletAddress || walletAddress === 'Unknown' || followLoading) return;
+        setFollowLoading(true);
+        try {
+            const res = isExtensionWallet
+                ? await ext.socialToggleFollow(walletKeys.publicKey, walletAddress)
+                : await rc.social.toggleFollow(walletKeys, walletAddress);
+            if (res.success) {
+                const r = res as { following?: boolean; followers?: number };
+                setIsFollowing(r.following ?? !isFollowing);
+                setFollowerCount(r.followers ?? followerCount);
+            }
+        } catch { /* ignore */ }
+        setFollowLoading(false);
+    };
+
+    const handlePlayAll = () => {
+        if (artistTracks.length > 0) {
+            play(artistTracks[0], artistTracks);
+        }
+    };
 
     if (artistTracks.length === 0) {
         return (
@@ -45,47 +87,12 @@ export default function ArtistProfile() {
         );
     }
 
-    // Derive artist profile from their tracks
+    // Derive artist profile from their tracks (safe past the empty-tracks guard)
     const coverUrl = artistTracks[0].coverUrl;
     const genres = [...new Set(artistTracks.map(t => t.genre).filter(g => g && g !== 'Unknown'))];
     const totalDuration = artistTracks.reduce((sum, t) => sum + t.duration, 0);
     const collections = new Set(artistTracks.map(t => t.collectionId).filter(Boolean));
     const tokenSymbols = [...new Set(artistTracks.map(t => t.tokenSymbol).filter(Boolean))];
-    // Get the wallet/owner from the first track
-    const walletAddress = artistTracks[0]?.owner || 'Unknown';
-
-    const loadArtistStats = useCallback(async () => {
-        if (!walletAddress || walletAddress === 'Unknown') return;
-        try {
-            const s = await rc.social.getArtistStats(walletAddress, walletKeys?.publicKey);
-            setFollowerCount(s.followers);
-            setFollowingCount(s.following);
-            setIsFollowing(s.isFollowing);
-        } catch { /* ignore */ }
-    }, [walletAddress, walletKeys?.publicKey, rc]);
-
-    useEffect(() => { loadArtistStats(); }, [loadArtistStats]);
-
-    const handleFollow = async () => {
-        if (!walletKeys || !walletAddress || walletAddress === 'Unknown' || followLoading) return;
-        setFollowLoading(true);
-        try {
-            const res = isExtensionWallet
-                ? await ext.socialToggleFollow(walletKeys.publicKey, walletAddress)
-                : await rc.social.toggleFollow(walletKeys, walletAddress);
-            if (res.success) {
-                setIsFollowing((res as any).following ?? !isFollowing);
-                setFollowerCount((res as any).followers ?? followerCount);
-            }
-        } catch { /* ignore */ }
-        setFollowLoading(false);
-    };
-
-    const handlePlayAll = () => {
-        if (artistTracks.length > 0) {
-            play(artistTracks[0], artistTracks);
-        }
-    };
 
     return (
         <div className="page-container">

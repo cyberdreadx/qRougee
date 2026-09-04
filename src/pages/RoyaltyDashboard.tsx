@@ -54,6 +54,8 @@ export default function RoyaltyDashboard() {
     }, [walletKeys, rc, collections]);
 
     useEffect(() => {
+        // Fetch-on-connect: fetchOwned flips its loading flag before awaiting — intended UX.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (isConnected) fetchOwned();
     }, [isConnected, fetchOwned]);
 

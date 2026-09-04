@@ -74,8 +74,11 @@ export default function LibraryPage() {
 
     useEffect(() => {
         if (isConnected && walletKeys) {
+            // Fetch-on-connect: each fn flips its loading flag before awaiting — intended UX.
+            /* eslint-disable react-hooks/set-state-in-effect */
             fetchOwned();
             fetchLiked();
+            /* eslint-enable react-hooks/set-state-in-effect */
         }
     }, [isConnected, walletKeys, fetchOwned, fetchLiked]);
 

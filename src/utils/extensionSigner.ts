@@ -13,18 +13,6 @@ import { getApiBase } from '../config/network';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function sortKeysDeep(obj: unknown): unknown {
-    if (Array.isArray(obj)) return obj.map(sortKeysDeep);
-    if (obj !== null && typeof obj === 'object') {
-        const sorted: Record<string, unknown> = {};
-        for (const key of Object.keys(obj as Record<string, unknown>).sort()) {
-            sorted[key] = sortKeysDeep((obj as Record<string, unknown>)[key]);
-        }
-        return sorted;
-    }
-    return obj;
-}
-
 function bytesToHex(bytes: Uint8Array): string {
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -45,34 +33,56 @@ interface SignedTx {
     payload: Payload;
     signature: string;
     public_key: string;
-    payload_bytes_hex?: string;
 }
 
 type ApiResult = { success: boolean; error?: string; data?: unknown };
 
-function getProvider() {
-    const p = (window as any).rougechain;
+/** Shape of the result returned by the extension's signTransaction(). */
+interface ExtensionSignResult {
+    signature?: string;
+    payload?: Payload;
+    public_key?: string;
+}
+
+interface RougeChainProvider {
+    isRougeChain?: boolean;
+    signTransaction(payload: Payload): Promise<ExtensionSignResult>;
+}
+
+function getProvider(): RougeChainProvider | null {
+    const p = (window as unknown as { rougechain?: RougeChainProvider }).rougechain;
     return p?.isRougeChain ? p : null;
+}
+
+function errMessage(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
 }
 
 async function signPayload(payload: Payload, publicKey: string): Promise<SignedTx> {
     const provider = getProvider();
     if (!provider) throw new Error('RougeChain wallet extension not available');
 
-    const serialized = JSON.stringify(sortKeysDeep(payload));
-    const serializedHex = bytesToHex(new TextEncoder().encode(serialized));
-
-    let result: any;
+    let result: ExtensionSignResult;
     try {
         result = await provider.signTransaction(payload);
-    } catch (e: any) {
-        throw new Error(`Wallet signing rejected: ${e?.message || e}`);
+    } catch (e: unknown) {
+        throw new Error(`Wallet signing rejected: ${errMessage(e)}`);
     }
     if (!result?.signature) {
         throw new Error('Wallet did not return a signature — was the request approved?');
     }
 
-    return { payload, signature: result.signature, public_key: publicKey, payload_bytes_hex: serializedHex };
+    // The node verifies the signature by re-serializing the submitted payload
+    // canonically (sortKeysDeep → JSON → ML-DSA-65). So we must submit the exact
+    // payload the extension signed, plus the key it signed with. Extensions
+    // return these on the result; fall back to our copies only if absent. Never
+    // submit our pre-sign `payload` when the extension returned its own — if it
+    // normalized any field, the bytes would differ and verification would fail.
+    return {
+        payload: result.payload ?? payload,
+        signature: result.signature,
+        public_key: result.public_key ?? publicKey,
+    };
 }
 
 async function submitSigned(endpoint: string, signedTx: SignedTx): Promise<ApiResult> {
@@ -83,10 +93,10 @@ async function submitSigned(endpoint: string, signedTx: SignedTx): Promise<ApiRe
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(signedTx),
         });
-    } catch (e: any) {
-        throw new Error(`Network error: ${e?.message || 'could not reach node'}`);
+    } catch (e: unknown) {
+        throw new Error(`Network error: ${errMessage(e) || 'could not reach node'}`);
     }
-    let data: any;
+    let data: { success?: boolean; error?: string; [key: string]: unknown };
     try {
         data = await res.json();
     } catch {

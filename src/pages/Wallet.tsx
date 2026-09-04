@@ -93,7 +93,7 @@ export default function WalletPage() {
                 await exportKeystore(walletKeys, newWalletPassword);
             }
             setShowPasswordSetup(false);
-        } catch (e) {
+        } catch {
             setNewWalletPwdError('Failed to export keystore');
         }
         setNewWalletPwdBusy(false);

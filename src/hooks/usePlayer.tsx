@@ -95,7 +95,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    // Progress update loop
+    // Progress update loop — a self-scheduling requestAnimationFrame loop; the
+    // recursive reference to updateProgress is intentional, not a mutation bug.
+    /* eslint-disable react-hooks/immutability */
     const updateProgress = useCallback(() => {
         const audio = audioRef.current;
         if (audio && !audio.paused && !audio.ended) {
@@ -107,6 +109,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
         animRef.current = requestAnimationFrame(updateProgress);
     }, []);
+    /* eslint-enable react-hooks/immutability */
 
     useEffect(() => {
         if (state.isPlaying) {
@@ -208,7 +211,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
         audio.addEventListener('ended', handleEnded);
         return () => audio.removeEventListener('ended', handleEnded);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const play = useCallback((track: Track, queue?: Track[]) => {
@@ -238,7 +240,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 };
             });
         });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [checkPlayGate]);
 
     const pause = useCallback(() => {
@@ -281,7 +282,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 duration: nextTrack.duration,
             };
         });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const prev = useCallback(() => {
@@ -298,7 +298,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 duration: prevTrack.duration,
             };
         });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const seek = useCallback((pct: number) => {
@@ -362,6 +361,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider
 export function usePlayer() {
     const ctx = useContext(PlayerContext);
     if (!ctx) throw new Error('usePlayer must be used within PlayerProvider');
