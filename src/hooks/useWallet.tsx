@@ -3,6 +3,7 @@ import { type WalletKeys } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { pubkeyToAddress, formatAddress } from '../utils/address';
 import { generateMnemonic, validateMnemonic, keypairFromMnemonic } from '../utils/mnemonic';
+import { secureSet, secureGet, secureClear } from '../utils/secureSession';
 
 interface WalletState {
     publicKey: string | null;
@@ -63,39 +64,28 @@ function truncateKey(key: string): string {
     return key.slice(0, 8) + '...' + key.slice(-6);
 }
 
-// Session-scoped storage keys — sessionStorage persists across page refresh
-// but auto-clears when the browser tab is closed.
-//
-// SECURITY TRADE-OFF: for locally-created/imported wallets this holds the raw
-// private key (and mnemonic) in plaintext for the life of the tab, so it is
-// readable by any script running on the page (XSS). We accept this to keep the
-// wallet usable across refreshes without re-prompting; it is never written to
-// localStorage or disk unencrypted (only the public key is), and clears on tab
-// close. For at-rest protection users export an encrypted keystore (useKeystore).
-// Extension wallets never expose their private key here (privateKey stays '').
-const SESSION_KEYS = 'qrougee_session_keys';
+// Wallet session persistence. The private key survives a page refresh but
+// auto-clears when the tab closes (ciphertext lives in sessionStorage). It is
+// NOT stored in readable plaintext: secureSession encrypts it with a
+// non-extractable AES-GCM key held in IndexedDB, so a storage dump yields only
+// ciphertext — see src/utils/secureSession.ts for the threat model and its
+// honest limits. Only the public key is written to localStorage (for cheap
+// "is a wallet present" checks). Extension wallets never expose a private key
+// here (privateKey stays '').
 const PUB_KEY_STORAGE = 'qrougee_pubkey';
 
-function saveSessionKeys(keys: WalletKeys) {
-    sessionStorage.setItem(SESSION_KEYS, JSON.stringify(keys));
-    localStorage.setItem(PUB_KEY_STORAGE, keys.publicKey);
+async function saveSessionKeys(keys: WalletKeys) {
+    await secureSet(keys);
+    try { localStorage.setItem(PUB_KEY_STORAGE, keys.publicKey); } catch { /* ignore */ }
 }
 
-function loadSessionKeys(): WalletKeys | null {
-    try {
-        const raw = sessionStorage.getItem(SESSION_KEYS);
-        if (!raw) return null;
-        const keys = JSON.parse(raw) as WalletKeys;
-        if (keys.publicKey) return keys;
-        return null;
-    } catch {
-        return null;
-    }
+function loadSessionKeys(): Promise<WalletKeys | null> {
+    return secureGet();
 }
 
-function clearSessionKeys() {
-    sessionStorage.removeItem(SESSION_KEYS);
-    localStorage.removeItem(PUB_KEY_STORAGE);
+async function clearSessionKeys() {
+    await secureClear();
+    try { localStorage.removeItem(PUB_KEY_STORAGE); } catch { /* ignore */ }
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -143,10 +133,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
     }, [rc]);
 
-    // On mount, restore wallet from sessionStorage (survives page refresh)
+    // On mount, restore wallet from the encrypted session store (survives refresh).
     useEffect(() => {
-        const keys = loadSessionKeys();
-        if (keys) {
+        let cancelled = false;
+        (async () => {
+            const keys = await loadSessionKeys();
+            if (!keys || cancelled) return;
             setWalletKeys(keys);
             const wasExtension = sessionStorage.getItem('qrougee_ext_wallet') === 'true';
             if (wasExtension) setIsExtensionWallet(true);
@@ -161,10 +153,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 connectError: null,
             });
             pubkeyToAddress(keys.publicKey).then(addr => {
-                setState(prev => ({ ...prev, address: addr }));
+                if (!cancelled) setState(prev => ({ ...prev, address: addr }));
             });
             fetchBalance(keys.publicKey);
-        }
+        })();
+        return () => { cancelled = true; };
     }, [fetchBalance]);
 
     const connect = useCallback(async () => {
@@ -176,7 +169,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const keys: WalletKeys = { publicKey, privateKey };
 
             setWalletKeys(keys);
-            saveSessionKeys({ ...keys, mnemonic });
+            await saveSessionKeys({ ...keys, mnemonic });
 
             const addr = await pubkeyToAddress(keys.publicKey);
 
@@ -212,7 +205,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const keys: WalletKeys = { publicKey, privateKey };
 
             setWalletKeys(keys);
-            saveSessionKeys({ ...keys, mnemonic });
+            await saveSessionKeys({ ...keys, mnemonic });
 
             const addr = await pubkeyToAddress(keys.publicKey);
 
@@ -236,7 +229,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setState(prev => ({ ...prev, isLoading: true }));
 
         setWalletKeys(keys);
-        saveSessionKeys(keys);
+        await saveSessionKeys(keys);
 
         const addr = await pubkeyToAddress(keys.publicKey);
 
@@ -266,7 +259,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const keys: WalletKeys = { publicKey: result.publicKey, privateKey: '' };
             setWalletKeys(keys);
             setIsExtensionWallet(true);
-            saveSessionKeys(keys);
+            await saveSessionKeys(keys);
             sessionStorage.setItem('qrougee_ext_wallet', 'true');
 
             const addr = await pubkeyToAddress(result.publicKey);
@@ -308,7 +301,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const disconnect = useCallback(() => {
         setWalletKeys(null);
-        clearSessionKeys();
+        void clearSessionKeys();
         setIsExtensionWallet(false);
         sessionStorage.removeItem('qrougee_ext_wallet');
         setState({
