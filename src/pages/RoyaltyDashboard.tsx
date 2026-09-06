@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { useNftTracks } from '../hooks/useNftTracks';
+import RoyaltySplitterPanel from '../components/RoyaltySplitterPanel';
 import { formatDuration } from '../data/mockData';
 import type { NftToken } from '@rougechain/sdk';
 
@@ -107,6 +108,11 @@ export default function RoyaltyDashboard() {
                     <div className="royalty-stat-value">{ownedTracks.length}</div>
                     <div className="text-xs text-muted">NFTs you own</div>
                 </div>
+            </div>
+
+            {/* On-chain royalty splitter (v2) */}
+            <div className="section" style={{ marginTop: 40 }}>
+                <RoyaltySplitterPanel />
             </div>
 
             {/* Track Earnings */}
