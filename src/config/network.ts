@@ -44,3 +44,16 @@ export function setNetworkId(id: NetworkId): void {
         localStorage.setItem(STORAGE_KEY, id);
     } catch { /* localStorage unavailable */ }
 }
+
+/**
+ * Map a wallet host's network id to a site network id. A RougeChain wallet
+ * (Qwalla / the extension) reports `mainnet`, `testnet`, or `devnet`; the site
+ * only serves `mainnet` and `testnet`, and the wallet's `testnet`/`devnet` both
+ * point at the same public test node the site calls `testnet`. Anything
+ * unrecognized returns null so we leave the site's own choice alone.
+ */
+export function providerNetworkToSiteId(net: unknown): NetworkId | null {
+    if (net === 'mainnet') return 'mainnet';
+    if (net === 'testnet' || net === 'devnet') return 'testnet';
+    return null;
+}
