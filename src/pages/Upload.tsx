@@ -37,6 +37,8 @@ interface Draft {
     step: number;
     audioFileName?: string;
     coverFileName?: string;
+    /** base64 data URL of the cover so resuming a draft keeps the uploaded artwork */
+    coverDataUrl?: string;
     updatedAt: number;
 }
 
@@ -55,6 +57,29 @@ function saveDrafts(drafts: Draft[]) {
 function deleteDraft(id: string) {
     saveDrafts(loadDrafts().filter(d => d.id !== id));
 }
+
+/** Read a File as a base64 data URL (used to keep a draft's cover image across save/resume). */
+function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+    });
+}
+
+/** Rebuild a File from a stored base64 data URL. */
+function dataUrlToFile(dataUrl: string, name: string): File {
+    const [head, b64] = dataUrl.split(',');
+    const mime = /data:(.*?);base64/.exec(head)?.[1] || 'image/png';
+    const bin = atob(b64 || '');
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new File([arr], name, { type: mime });
+}
+
+// Skip persisting a cover too big for localStorage (~5MB quota); keep just the filename.
+const MAX_COVER_DATAURL = 2_000_000;
 
 const STEPS = ['Upload', 'Mint NFT', 'Tokenomics', 'Collectible', 'Publish'];
 
@@ -85,6 +110,8 @@ export default function UploadPage() {
     const [step, setStep] = useState(0);
     const [form, setForm] = useState<MintForm>({ ...DEFAULT_FORM });
     const [coverFile, setCoverFile] = useState<File | null>(null);
+    // base64 mirror of the cover, kept so a saved/auto-saved draft retains the artwork
+    const [coverDataUrl, setCoverDataUrl] = useState<string>('');
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [isMinting, setIsMinting] = useState(false);
     const [mintSuccess, setMintSuccess] = useState(false);
@@ -114,6 +141,7 @@ export default function UploadPage() {
             step,
             audioFileName: audioFile?.name,
             coverFileName: coverFile?.name,
+            coverDataUrl: coverDataUrl && coverDataUrl.length < MAX_COVER_DATAURL ? coverDataUrl : undefined,
             updatedAt: Date.now(),
         };
         const existing = loadDrafts().filter(d => d.id !== id);
@@ -123,7 +151,7 @@ export default function UploadPage() {
         refreshDrafts();
         setDraftSaved(true);
         setTimeout(() => setDraftSaved(false), 2000);
-    }, [form, step, audioFile, coverFile, activeDraftId, refreshDrafts]);
+    }, [form, step, audioFile, coverFile, coverDataUrl, activeDraftId, refreshDrafts]);
 
     const loadDraft = useCallback((draft: Draft) => {
         setForm(draft.form);
@@ -132,7 +160,14 @@ export default function UploadPage() {
         setShowDrafts(false);
         setMintSuccess(false);
         setMintError(null);
-        setCoverFile(null);
+        // Restore the uploaded cover from the draft (audio is too large to persist, so it must
+        // be re-selected — but at least the artwork survives a save/resume).
+        if (draft.coverDataUrl) {
+            try { setCoverFile(dataUrlToFile(draft.coverDataUrl, draft.coverFileName || 'cover.png')); }
+            catch { setCoverFile(null); }
+        } else {
+            setCoverFile(null);
+        }
         setAudioFile(null);
     }, []);
 
@@ -151,6 +186,7 @@ export default function UploadPage() {
                 id, form, step,
                 audioFileName: audioFile?.name,
                 coverFileName: coverFile?.name,
+                coverDataUrl: coverDataUrl && coverDataUrl.length < MAX_COVER_DATAURL ? coverDataUrl : undefined,
                 updatedAt: Date.now(),
             };
             const existing = loadDrafts().filter(d => d.id !== id);
@@ -160,7 +196,7 @@ export default function UploadPage() {
             refreshDrafts();
         }, 10_000);
         return () => clearTimeout(timer);
-    }, [form, step, audioFile, coverFile, activeDraftId, refreshDrafts]);
+    }, [form, step, audioFile, coverFile, coverDataUrl, activeDraftId, refreshDrafts]);
 
     // Preview URLs (freed when file changes)
     const audioPreviewUrl = useMemo(() => {
@@ -171,6 +207,14 @@ export default function UploadPage() {
     const coverPreviewUrl = useMemo(() => {
         if (!coverFile) return '';
         return URL.createObjectURL(coverFile);
+    }, [coverFile]);
+
+    // Keep a base64 copy of the cover in sync so draft save/resume retains it.
+    useEffect(() => {
+        let cancelled = false;
+        if (!coverFile) { setCoverDataUrl(''); return; }
+        fileToDataUrl(coverFile).then((d) => { if (!cancelled) setCoverDataUrl(d); }).catch(() => {});
+        return () => { cancelled = true; };
     }, [coverFile]);
 
     const updateSplit = (key: keyof RoyaltySplit, value: number) => {

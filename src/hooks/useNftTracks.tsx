@@ -3,6 +3,12 @@ import type { NftCollection, NftToken } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { MOCK_TRACKS, type Track, type RoyaltySplit, type RoyaltyPayee } from '../data/mockData';
 
+// Older mints stored IPFS URLs with an unencoded folder name (raw spaces / em-dash), which
+// won't load. Percent-encode http(s) URLs so both audio and cover resolve (encodeURI is
+// idempotent, so already-safe URLs pass through unchanged).
+const encodeIpfs = (u?: string): string | undefined =>
+    u && /^https?:/i.test(u) ? encodeURI(u) : u;
+
 /** Music metadata we read out of an NFT's free-form `attributes` blob. */
 interface TrackAttrs {
     artist?: string;
@@ -40,8 +46,8 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         artist: attrs.artist || truncateCreator(token.creator || ''),
         album: collection.name || 'Unknown Collection',
         duration: parseInt(String(attrs.duration || '0'), 10) || 210,
-        coverUrl: attrs.coverUrl || collection.image || generateCover(token.token_id),
-        audioUrl: attrs.audioUrl || '',
+        coverUrl: encodeIpfs(attrs.coverUrl) || collection.image || generateCover(token.token_id),
+        audioUrl: encodeIpfs(attrs.audioUrl) || '',
         genre: attrs.genre || 'Unknown',
         collectionId: token.collection_id,
         tokenId: `tok_${token.token_id}`,

@@ -125,7 +125,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (!audio) return;
 
         if (track.audioUrl) {
-            audio.src = track.audioUrl;
+            // encodeURI so already-minted tracks whose IPFS URL has raw spaces / em-dash still
+            // load (safe URLs pass through unchanged).
+            audio.src = encodeURI(track.audioUrl);
             audio.volume = vol;
             audio.play().catch(() => {});
         } else {

@@ -136,9 +136,19 @@ export async function pinFolder(
     const headers = getAuthHeaders();
     const body = new FormData();
 
+    // The folder name becomes a path segment in the IPFS retrieval URL, so it must be URL-safe.
+    // A raw name with spaces / em-dash (e.g. "Artist — Title") produced a broken URL that failed
+    // to load the audio and cover. Slugify for the path; the pretty name stays in pin metadata.
+    const safeFolder =
+        (folderName || 'assets')
+            .normalize('NFKD')
+            .replace(/[^a-zA-Z0-9._-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 80) || 'assets';
+
     for (const { path, file } of files) {
-        // Pinata wraps files in a directory when each file has a path like `folderName/filename`
-        body.append('file', file, `${folderName}/${path}`);
+        // Pinata wraps files in a directory when each file has a path like `folder/filename`
+        body.append('file', file, `${safeFolder}/${path}`);
     }
 
     const meta: Record<string, unknown> = { name: folderName };
@@ -164,7 +174,7 @@ export async function pinFolder(
     const data = await res.json();
     const cid: string = data.IpfsHash;
     const gateway = getGateway();
-    const baseUrl = `${gateway}/${cid}/${folderName}`;
+    const baseUrl = `${gateway}/${cid}/${safeFolder}`;
 
     return {
         cid,
