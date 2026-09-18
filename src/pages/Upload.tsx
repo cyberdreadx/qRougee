@@ -80,7 +80,7 @@ const DEFAULT_FORM: MintForm = {
 };
 
 export default function UploadPage() {
-    const { isConnected, connect, balance, walletKeys, isExtensionWallet } = useWallet();
+    const { isConnected, connect, balance, walletKeys, isExtensionWallet, address } = useWallet();
     const rc = useRougeChain();
     const [step, setStep] = useState(0);
     const [form, setForm] = useState<MintForm>({ ...DEFAULT_FORM });
@@ -230,7 +230,9 @@ export default function UploadPage() {
                 artist: form.artist,
                 genre: form.genre || 'Unknown',
                 type: 'track-assets',
-                wallet: walletKeys.publicKey,
+                // Short rouge1 address, not the ~3,900-char ML-DSA pubkey (Pinata caps tag
+                // values at 250 chars). sanitizeKeyvalues in pinata.ts is the backstop.
+                wallet: address || '',
                 symbol: tokenSymbol,
             };
 

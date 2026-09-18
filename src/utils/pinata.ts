@@ -30,6 +30,23 @@ function getGateway(): string {
     return gw;
 }
 
+/**
+ * Pinata's Files v3 API rejects any `keyvalues` key or value that is 250+ characters
+ * (a full ML-DSA-65 pubkey is ~3,900 chars, which is what broke track publishing). Coerce
+ * every key/value to a string and cap it well under the limit so an oversized tag can never
+ * fail the upload again. Empty keys are dropped.
+ */
+function sanitizeKeyvalues(kv?: Record<string, string>): Record<string, string> | undefined {
+    if (!kv) return undefined;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(kv)) {
+        const key = String(k).slice(0, 240);
+        const val = String(v ?? '').slice(0, 240);
+        if (key) out[key] = val;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** Upload a single File to Pinata and return the IPFS CID + gateway URL */
 export async function pinFile(
     file: File,
@@ -42,7 +59,7 @@ export async function pinFile(
 
     const meta: Record<string, unknown> = {};
     if (name) meta.name = name;
-    if (keyvalues) meta.keyvalues = keyvalues;
+    const kv = sanitizeKeyvalues(keyvalues); if (kv) meta.keyvalues = kv;
     if (Object.keys(meta).length > 0) {
         body.append('pinataMetadata', JSON.stringify(meta));
     }
@@ -73,7 +90,7 @@ export async function pinJson(
 
     const meta: Record<string, unknown> = {};
     if (name) meta.name = name;
-    if (keyvalues) meta.keyvalues = keyvalues;
+    const kv = sanitizeKeyvalues(keyvalues); if (kv) meta.keyvalues = kv;
 
     const res = await fetch(`${PINATA_API}/pinning/pinJSONToIPFS`, {
         method: 'POST',
@@ -125,7 +142,7 @@ export async function pinFolder(
     }
 
     const meta: Record<string, unknown> = { name: folderName };
-    if (keyvalues) meta.keyvalues = keyvalues;
+    const kv = sanitizeKeyvalues(keyvalues); if (kv) meta.keyvalues = kv;
     body.append('pinataMetadata', JSON.stringify(meta));
 
     body.append(
