@@ -10,6 +10,7 @@ import { pinFolder, pinJson } from '../utils/pinata';
 import { type RoyaltySplit, type RoyaltyPayee, GENRES, formatDuration } from '../data/mockData';
 import { analyzeAudio } from '../utils/audioAnalysis';
 import WaveformPreview from '../components/WaveformPreview';
+import { useNftTracks } from '../hooks/useNftTracks';
 import * as ext from '../utils/extensionSigner';
 
 interface MintForm {
@@ -121,7 +122,16 @@ export default function UploadPage() {
     const [audioDuration, setAudioDuration] = useState(0);
     const [audioPeaks, setAudioPeaks] = useState<number[]>([]);
     const [preview, setPreview] = useState<{ start: number; end: number } | null>(null);
+    const [audioHash, setAudioHash] = useState('');
     const [analyzing, setAnalyzing] = useState(false);
+
+    // Duplicate-master guard: if this exact audio was already minted, surface the
+    // existing track so the user can't re-mint someone else's (or their own) master.
+    const { allTracksUnfiltered } = useNftTracks();
+    const duplicate = useMemo(
+        () => (audioHash ? allTracksUnfiltered.find((t) => t.audioHash && t.audioHash === audioHash) : undefined),
+        [audioHash, allTracksUnfiltered],
+    );
     const [isMinting, setIsMinting] = useState(false);
     const [mintSuccess, setMintSuccess] = useState(false);
     const [mintError, setMintError] = useState<string | null>(null);
@@ -181,6 +191,7 @@ export default function UploadPage() {
         setAudioDuration(0);
         setAudioPeaks([]);
         setPreview(null);
+        setAudioHash('');
     }, []);
 
     const removeDraft = useCallback((id: string) => {
@@ -258,13 +269,17 @@ export default function UploadPage() {
         (payeesTotal === 100 && form.royaltyPayees.every(p => p.address.trim() !== ''));
 
     const canProceed = () => {
-        if (step === 0) return !!form.title && !!form.artist;
+        if (step === 0) return !!form.title && !!form.artist && !duplicate;
         if (step === 2) return splitTotal === 100;
         return true;
     };
 
     const handlePublish = async () => {
         if (!walletKeys) return;
+        if (duplicate) {
+            setMintError(`This exact audio is already minted as "${duplicate.title}" by ${duplicate.artist}. Re-minting an existing master isn't allowed.`);
+            return;
+        }
         setIsMinting(true);
         setMintError(null);
 
@@ -330,6 +345,7 @@ export default function UploadPage() {
                 duration: audioDuration || undefined,
                 ...(audioPeaks.length > 0 ? { waveform: audioPeaks } : {}),
                 ...(preview ? { previewStart: preview.start, previewEnd: preview.end } : {}),
+                ...(audioHash ? { audioHash } : {}),
                 description: form.description,
                 collaborators: form.collaborators,
                 image: coverIpfsUrl,
@@ -564,6 +580,7 @@ export default function UploadPage() {
                                 setAudioDuration(0);
                                 setAudioPeaks([]);
                                 setPreview(null);
+                                setAudioHash('');
                                 setActiveDraftId(null);
                             }}
                         >
@@ -718,12 +735,14 @@ export default function UploadPage() {
                                     setAudioDuration(0);
                                     setAudioPeaks([]);
                                     setPreview(null);
+                                    setAudioHash('');
                                     setAnalyzing(true);
                                     analyzeAudio(file)
                                         .then((a) => {
                                             setAudioDuration(a.duration);
                                             setAudioPeaks(a.peaks);
                                             setPreview({ start: a.previewStart, end: a.previewEnd });
+                                            setAudioHash(a.audioHash);
                                         })
                                         .finally(() => setAnalyzing(false));
                                 }} />
@@ -763,6 +782,19 @@ export default function UploadPage() {
                                             </p>
                                         </div>
                                     )}
+                                    {duplicate ? (
+                                        <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 'var(--radius)', background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)' }}>
+                                            <p className="text-xs" style={{ color: '#f87171', margin: 0 }}>
+                                                ⚠ This exact audio is already minted as <strong>{duplicate.title}</strong> by {duplicate.artist}
+                                                {duplicate.mintDate ? ` on ${duplicate.mintDate}` : ''}.{' '}
+                                                <Link to={`/track/${duplicate.id}`} style={{ color: '#f87171', textDecoration: 'underline' }}>View the original</Link>
+                                            </p>
+                                        </div>
+                                    ) : audioHash && !analyzing ? (
+                                        <p className="text-xs" style={{ color: '#34d399', marginTop: 8 }}>
+                                            ✓ Original — this master hasn't been minted on qRougee before.
+                                        </p>
+                                    ) : null}
                                 </div>
                             )}
                         </div>

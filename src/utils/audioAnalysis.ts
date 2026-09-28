@@ -19,6 +19,9 @@ export interface AudioAnalysis {
   previewStart: number;
   /** End of the auto-picked hook, in seconds. */
   previewEnd: number;
+  /** SHA-256 of the file bytes (hex) — an exact-content fingerprint used to
+   *  detect a master that's already been minted. */
+  audioHash: string;
 }
 
 const PEAKS = 120;
@@ -32,20 +35,29 @@ type ACtor = typeof AudioContext;
  * decode the format via Web Audio (e.g. some FLAC builds).
  */
 export async function analyzeAudio(file: File): Promise<AudioAnalysis> {
+  const bytes = await file.arrayBuffer();
+  const audioHash = await sha256Hex(bytes);
   try {
-    return await decodeAndAnalyze(file);
+    return { ...(await decodeAndAnalyze(bytes)), audioHash };
   } catch {
     const duration = await elementDuration(file);
-    return { duration, peaks: [], previewStart: 0, previewEnd: Math.min(duration, PREVIEW_LEN) };
+    return { duration, peaks: [], previewStart: 0, previewEnd: Math.min(duration, PREVIEW_LEN), audioHash };
   }
 }
 
-async function decodeAndAnalyze(file: File): Promise<AudioAnalysis> {
+/** SHA-256 of the given bytes as a lowercase hex string. */
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function decodeAndAnalyze(bytes: ArrayBuffer): Promise<Omit<AudioAnalysis, 'audioHash'>> {
   const AC: ACtor =
     window.AudioContext || (window as unknown as { webkitAudioContext: ACtor }).webkitAudioContext;
   const ctx = new AC();
   try {
-    const bytes = await file.arrayBuffer();
     // decodeAudioData detaches the buffer on some engines — decode a copy.
     const audio = await ctx.decodeAudioData(bytes.slice(0));
     const duration = Math.round(audio.duration);

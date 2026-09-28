@@ -22,6 +22,7 @@ interface TrackAttrs {
     royaltyPayees?: RoyaltyPayee[];
     playGateThreshold?: string | number;
     premiumThreshold?: string | number;
+    audioHash?: string;
 }
 
 interface NftTracksState {
@@ -63,6 +64,7 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         royaltyPayees: Array.isArray(attrs.royaltyPayees) ? attrs.royaltyPayees : undefined,
         playGateThreshold: Number(attrs.playGateThreshold) || undefined,
         premiumThreshold: Number(attrs.premiumThreshold) || undefined,
+        audioHash: attrs.audioHash || undefined,
     };
 }
 
