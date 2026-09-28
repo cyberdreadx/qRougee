@@ -8,7 +8,25 @@ import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { pinFolder, pinJson } from '../utils/pinata';
 import { type RoyaltySplit, type RoyaltyPayee, GENRES } from '../data/mockData';
+import { deploySplitter } from '../utils/royaltySplitter';
+import { getApiBase } from '../config/network';
 import * as ext from '../utils/extensionSigner';
+
+/** Read an audio file's duration (seconds) from its metadata, 0 if unreadable. */
+function readAudioDuration(file: File): Promise<number> {
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const a = new Audio();
+        a.preload = 'metadata';
+        a.onloadedmetadata = () => {
+            const d = a.duration;
+            URL.revokeObjectURL(url);
+            resolve(Number.isFinite(d) && d > 0 ? Math.round(d) : 0);
+        };
+        a.onerror = () => { URL.revokeObjectURL(url); resolve(0); };
+        a.src = url;
+    });
+}
 
 interface MintForm {
     title: string;
@@ -19,6 +37,8 @@ interface MintForm {
     collaborators: string;
     tokenSupply: number;
     royaltySplit: RoyaltySplit;
+    /** Secondary-sale royalty as a percent (distinct from the primary revenue split). */
+    secondaryRoyaltyPct: number;
     royaltyPayees: RoyaltyPayee[];
     playGateThreshold: number;
     premiumThreshold: number;
@@ -92,6 +112,7 @@ const DEFAULT_FORM: MintForm = {
     collaborators: '',
     tokenSupply: 1_000_000,
     royaltySplit: { artist: 60, tokenHolders: 25, collaborators: 10, platform: 5 },
+    secondaryRoyaltyPct: 10,
     royaltyPayees: [],
     playGateThreshold: 50,
     premiumThreshold: 250,
@@ -113,6 +134,7 @@ export default function UploadPage() {
     // base64 mirror of the cover, kept so a saved/auto-saved draft retains the artwork
     const [coverDataUrl, setCoverDataUrl] = useState<string>('');
     const [audioFile, setAudioFile] = useState<File | null>(null);
+    const [audioDuration, setAudioDuration] = useState(0);
     const [isMinting, setIsMinting] = useState(false);
     const [mintSuccess, setMintSuccess] = useState(false);
     const [mintError, setMintError] = useState<string | null>(null);
@@ -169,6 +191,7 @@ export default function UploadPage() {
             setCoverFile(null);
         }
         setAudioFile(null);
+        setAudioDuration(0);
     }, []);
 
     const removeDraft = useCallback((id: string) => {
@@ -315,6 +338,7 @@ export default function UploadPage() {
                 name: form.title,
                 artist: form.artist,
                 genre: form.genre,
+                duration: audioDuration || undefined,
                 description: form.description,
                 collaborators: form.collaborators,
                 image: coverIpfsUrl,
@@ -336,13 +360,41 @@ export default function UploadPage() {
                 { ...pinataTags, type: 'track-metadata' },
             );
 
+            // Step 2b: If collaborators are set, deploy an on-chain royalty splitter
+            // and use its contract address as the collection's royaltyRecipient, so
+            // every secondary-sale royalty fans to collaborators automatically. A
+            // collection's recipient can't be changed after creation, so this must
+            // happen before createCollection. Best-effort: if deploy fails we fall
+            // back to the creator as the single recipient.
+            let royaltyRecipient: string | undefined;
+            if (form.royaltyPayees.length > 0) {
+                setMintStep('Deploying royalty splitter contract...');
+                try {
+                    const { address: splitterAddr } = await deploySplitter(
+                        getApiBase(),
+                        address || walletKeys.publicKey,
+                        form.royaltyPayees
+                            .filter((p) => p.address.trim() && p.pct > 0)
+                            .map((p) => ({ address: p.address.trim(), weight: p.pct })),
+                    );
+                    royaltyRecipient = splitterAddr;
+                } catch (splitErr) {
+                    console.warn('Royalty splitter deploy failed — royalties will go to the creator:', splitErr);
+                }
+            }
+
+            // Secondary-sale royalty (bps). This is the resale royalty, NOT the
+            // primary revenue split — keep it in the industry 5–10% range.
+            const secondaryRoyaltyBps = Math.round(Math.min(100, Math.max(0, form.secondaryRoyaltyPct)) * 100);
+
             // Step 3: Create NFT Collection on-chain
             setMintStep('Creating master NFT collection...');
             const collectionOpts = {
                 symbol: collectionSymbol,
                 name: `${form.title} — ${form.artist}`,
                 maxSupply: 1,
-                royaltyBps: form.royaltySplit.artist * 100,
+                royaltyBps: secondaryRoyaltyBps,
+                royaltyRecipient,
                 description: form.description || `Track: ${form.title} by ${form.artist}`,
                 image: coverIpfsUrl || undefined,
             };
@@ -436,7 +488,8 @@ export default function UploadPage() {
                         symbol: colSymbol,
                         name: `${form.title} — Collectible`,
                         maxSupply: form.collectibleMaxSupply > 0 ? form.collectibleMaxSupply : undefined,
-                        royaltyBps: form.royaltySplit.artist * 100,
+                        royaltyBps: secondaryRoyaltyBps,
+                        royaltyRecipient,
                         description: `Collectible album cover for "${form.title}" by ${form.artist}`,
                         image: coverIpfsUrl || undefined,
                         publicMint: true,
@@ -534,6 +587,7 @@ export default function UploadPage() {
                                 setForm({ ...DEFAULT_FORM });
                                 setCoverFile(null);
                                 setAudioFile(null);
+                                setAudioDuration(0);
                                 setActiveDraftId(null);
                             }}
                         >
@@ -685,6 +739,8 @@ export default function UploadPage() {
                                         return;
                                     }
                                     setAudioFile(file);
+                                    setAudioDuration(0);
+                                    readAudioDuration(file).then(setAudioDuration);
                                 }} />
                             {audioFile && (
                                 <div className="audio-preview" style={{ marginTop: 8 }}>
@@ -918,6 +974,17 @@ export default function UploadPage() {
                         </div>
 
                         <div className="form-group">
+                            <label className="form-label">Secondary-sale royalty %</label>
+                            <input type="number" className="form-input" min={0} max={25} step={0.5}
+                                value={form.secondaryRoyaltyPct}
+                                onChange={e => setForm({ ...form, secondaryRoyaltyPct: Math.min(25, Math.max(0, parseFloat(e.target.value) || 0)) })} />
+                            <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                The royalty you earn on every <strong>resale</strong> of the master &amp; collectibles —
+                                separate from the revenue split above. Industry standard is 5–10%.
+                            </p>
+                        </div>
+
+                        <div className="form-group">
                             <label className="form-label">
                                 Collaborator royalty splits{' '}
                                 <span className="text-xs text-muted">(optional — real per-address payouts)</span>
@@ -928,8 +995,9 @@ export default function UploadPage() {
                                 )}
                             </label>
                             <p className="text-xs text-muted" style={{ margin: '0 0 10px' }}>
-                                Split each royalty payout among collaborators. Leave empty to keep all royalties
-                                yourself. You distribute accrued royalties from the track page.
+                                Split every royalty among collaborators. When set, an on-chain splitter contract is
+                                deployed at mint and set as the royalty recipient, so payouts fan automatically —
+                                no manual distribution. Leave empty to keep all royalties yourself.
                             </p>
                             {form.royaltyPayees.map((p, i) => (
                                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-start' }}>

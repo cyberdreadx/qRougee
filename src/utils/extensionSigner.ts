@@ -119,6 +119,7 @@ export async function nftCreateCollection(
     publicKey: string,
     opts: {
         symbol: string; name: string; maxSupply?: number; royaltyBps: number;
+        royaltyRecipient?: string;
         description?: string; image?: string;
         publicMint?: boolean; mintPrice?: number;
         tokenGateSymbol?: string; tokenGateAmount?: number; discountPct?: number;
@@ -132,6 +133,7 @@ export async function nftCreateCollection(
         fee: 50,
         ...(opts.maxSupply != null ? { maxSupply: opts.maxSupply } : {}),
         royaltyBps: opts.royaltyBps,
+        ...(opts.royaltyRecipient ? { royaltyRecipient: opts.royaltyRecipient } : {}),
         ...(opts.description ? { description: opts.description } : {}),
         ...(opts.image ? { image: opts.image } : {}),
         ...(opts.publicMint != null ? { publicMint: opts.publicMint } : {}),
