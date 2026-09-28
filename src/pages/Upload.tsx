@@ -7,24 +7,10 @@ import {
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { pinFolder, pinJson } from '../utils/pinata';
-import { type RoyaltySplit, type RoyaltyPayee, GENRES } from '../data/mockData';
+import { type RoyaltySplit, type RoyaltyPayee, GENRES, formatDuration } from '../data/mockData';
+import { analyzeAudio } from '../utils/audioAnalysis';
+import WaveformPreview from '../components/WaveformPreview';
 import * as ext from '../utils/extensionSigner';
-
-/** Read an audio file's duration (seconds) from its metadata, 0 if unreadable. */
-function readAudioDuration(file: File): Promise<number> {
-    return new Promise((resolve) => {
-        const url = URL.createObjectURL(file);
-        const a = new Audio();
-        a.preload = 'metadata';
-        a.onloadedmetadata = () => {
-            const d = a.duration;
-            URL.revokeObjectURL(url);
-            resolve(Number.isFinite(d) && d > 0 ? Math.round(d) : 0);
-        };
-        a.onerror = () => { URL.revokeObjectURL(url); resolve(0); };
-        a.src = url;
-    });
-}
 
 interface MintForm {
     title: string;
@@ -133,6 +119,9 @@ export default function UploadPage() {
     const [coverDataUrl, setCoverDataUrl] = useState<string>('');
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [audioDuration, setAudioDuration] = useState(0);
+    const [audioPeaks, setAudioPeaks] = useState<number[]>([]);
+    const [preview, setPreview] = useState<{ start: number; end: number } | null>(null);
+    const [analyzing, setAnalyzing] = useState(false);
     const [isMinting, setIsMinting] = useState(false);
     const [mintSuccess, setMintSuccess] = useState(false);
     const [mintError, setMintError] = useState<string | null>(null);
@@ -190,6 +179,8 @@ export default function UploadPage() {
         }
         setAudioFile(null);
         setAudioDuration(0);
+        setAudioPeaks([]);
+        setPreview(null);
     }, []);
 
     const removeDraft = useCallback((id: string) => {
@@ -337,6 +328,8 @@ export default function UploadPage() {
                 artist: form.artist,
                 genre: form.genre,
                 duration: audioDuration || undefined,
+                ...(audioPeaks.length > 0 ? { waveform: audioPeaks } : {}),
+                ...(preview ? { previewStart: preview.start, previewEnd: preview.end } : {}),
                 description: form.description,
                 collaborators: form.collaborators,
                 image: coverIpfsUrl,
@@ -569,6 +562,8 @@ export default function UploadPage() {
                                 setCoverFile(null);
                                 setAudioFile(null);
                                 setAudioDuration(0);
+                                setAudioPeaks([]);
+                                setPreview(null);
                                 setActiveDraftId(null);
                             }}
                         >
@@ -721,7 +716,16 @@ export default function UploadPage() {
                                     }
                                     setAudioFile(file);
                                     setAudioDuration(0);
-                                    readAudioDuration(file).then(setAudioDuration);
+                                    setAudioPeaks([]);
+                                    setPreview(null);
+                                    setAnalyzing(true);
+                                    analyzeAudio(file)
+                                        .then((a) => {
+                                            setAudioDuration(a.duration);
+                                            setAudioPeaks(a.peaks);
+                                            setPreview({ start: a.previewStart, end: a.previewEnd });
+                                        })
+                                        .finally(() => setAnalyzing(false));
                                 }} />
                             {audioFile && (
                                 <div className="audio-preview" style={{ marginTop: 8 }}>
@@ -730,6 +734,35 @@ export default function UploadPage() {
                                         src={audioPreviewUrl}
                                         style={{ width: '100%', height: 40, borderRadius: 'var(--radius)' }}
                                     />
+                                    {analyzing && (
+                                        <p className="text-xs text-muted" style={{ marginTop: 6 }}>
+                                            Analyzing audio — building waveform &amp; picking the hook…
+                                        </p>
+                                    )}
+                                    {audioPeaks.length > 0 && (
+                                        <div style={{ marginTop: 10 }}>
+                                            <WaveformPreview
+                                                peaks={audioPeaks}
+                                                duration={audioDuration}
+                                                previewStart={preview?.start}
+                                                previewEnd={preview?.end}
+                                            />
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                                                <span className="text-xs text-muted">
+                                                    Length {formatDuration(audioDuration)}
+                                                </span>
+                                                {preview && (
+                                                    <span className="text-xs" style={{ color: 'var(--accent)' }}>
+                                                        Hook {formatDuration(preview.start)}–{formatDuration(preview.end)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                                The highlighted window is the free preview hook — token-gated plays
+                                                stream this; holders get the full track. It also scores reels on RouGee.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
