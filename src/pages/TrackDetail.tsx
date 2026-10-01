@@ -169,7 +169,7 @@ export default function TrackDetail() {
             const tokenIdNum = track.tokenId.replace('tok_', '');
             const res = isExtensionWallet
                 ? await ext.nftBurn(walletKeys.publicKey, track.collectionId, tokenIdNum)
-                : await rc.nft.burn(walletKeys, { collectionId: track.collectionId, tokenId: tokenIdNum });
+                : await rc.nft.burn(walletKeys, { collectionId: track.collectionId, tokenId: Number(tokenIdNum) });
             if (res.success) {
                 navigate('/');
             }
@@ -190,7 +190,7 @@ export default function TrackDetail() {
             const tokenIdNum = track.tokenId.replace('tok_', '');
             const res = isExtensionWallet
                 ? await ext.nftTransfer(walletKeys.publicKey, track.collectionId, tokenIdNum, to, price)
-                : await rc.nft.transfer(walletKeys, { collectionId: track.collectionId, tokenId: tokenIdNum, to, salePrice: price });
+                : await rc.nft.transfer(walletKeys, { collectionId: track.collectionId, tokenId: Number(tokenIdNum), to, salePrice: price });
             if (res.success) {
                 setSellResult('Transferred! Redirecting…');
                 setTimeout(() => navigate('/'), 1500);
