@@ -9,7 +9,8 @@ import * as ext from '../utils/extensionSigner';
 import { MOCK_TRACKS, formatDuration } from '../data/mockData';
 import { explorerUrl } from '../utils/explorer';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
-import type { TrackStats, SocialComment, NftCollection } from '@rougechain/sdk';
+import { getApiBase } from '../config/network';
+import type { TrackStats, SocialComment } from '@rougechain/sdk';
 
 export default function TrackDetail() {
     const { id } = useParams<{ id: string }>();
@@ -82,18 +83,34 @@ export default function TrackDetail() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { loadSocial(); }, [loadSocial]);
 
-    // Look up collectible collection for this track
+    // Look up the fan-mintable collectible collection for this track. It shares the
+    // master collection's id with the trailing `NFT` swapped for `COL`. We hit the
+    // collection endpoint directly (not via the SDK) so this doesn't depend on the
+    // bundled SDK build exposing getCollection, and we log failures instead of
+    // swallowing them — a silent catch here was indistinguishable from "no collectible".
     useEffect(() => {
         if (!track?.collectionId) return;
-        // Collectible collection ID is the same prefix but with COL suffix instead of NFT
         const colId = track.collectionId.replace(/NFT$/, 'COL');
-        if (colId === track.collectionId) return;
-        rc.nft.getCollection(colId)
-            .then((col: NftCollection) => {
-                if (col && col.public_mint) setCollectibleCol(col);
-            })
-            .catch(() => {});
-    }, [track?.collectionId, rc]);
+        if (colId === track.collectionId) return; // id doesn't end in NFT → no collectible
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`${getApiBase()}/nft/collection/${colId}`);
+                if (!res.ok) {
+                    if (res.status !== 404) console.warn('Collectible lookup failed', res.status, colId);
+                    return;
+                }
+                const col = await res.json();
+                // The node returns the mint count as `minted` (sometimes null) — normalize it.
+                if (!cancelled && col && col.public_mint) {
+                    setCollectibleCol({ ...col, minted: Number(col.minted ?? col.total_minted ?? 0) });
+                }
+            } catch (e) {
+                console.warn('Collectible lookup error', colId, e);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [track?.collectionId]);
 
     const handleCollectibleMint = async () => {
         if (!walletKeys || !collectibleCol || collectibleMinting) return;
