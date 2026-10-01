@@ -6,10 +6,12 @@ import {
     Volume2,
     VolumeX,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../hooks/usePlayer';
 import { formatDuration } from '../data/mockData';
 
 export default function PlayerBar() {
+    const navigate = useNavigate();
     const {
         currentTrack,
         isPlaying,
@@ -75,7 +77,15 @@ export default function PlayerBar() {
 
     return (
         <div className="player-bar">
-            <div className="player-track-info">
+            <div
+                className="player-track-info"
+                style={{ cursor: 'pointer' }}
+                role="link"
+                tabIndex={0}
+                title="Open track"
+                onClick={() => navigate(`/track/${currentTrack.id}`)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/track/${currentTrack.id}`); } }}
+            >
                 <div className="player-thumb">
                     <img src={currentTrack.coverUrl} alt={currentTrack.title} />
                 </div>
