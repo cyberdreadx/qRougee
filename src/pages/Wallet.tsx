@@ -8,6 +8,7 @@ import {
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { exportKeystore, importKeystore } from '../hooks/useKeystore';
+import { getNetworkId } from '../config/network';
 import * as ext from '../utils/extensionSigner';
 
 /* ────────────────────────────────────────────────────────── */
@@ -457,11 +458,13 @@ export default function WalletPage() {
                         </button>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button className="btn btn-primary" onClick={handleFaucet} disabled={faucetLoading}
-                            style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
-                            <Droplets size={14} />
-                            {faucetLoading ? 'Claiming...' : 'Faucet'}
-                        </button>
+                        {getNetworkId() === 'testnet' && (
+                            <button className="btn btn-primary" onClick={handleFaucet} disabled={faucetLoading}
+                                style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
+                                <Droplets size={14} />
+                                {faucetLoading ? 'Claiming...' : 'Faucet'}
+                            </button>
+                        )}
                         <button className="btn btn-primary" onClick={() => { setShowSendModal(true); setSendError(''); setSendSuccess(''); }}
                             style={{ fontSize: '0.8rem', padding: '8px 14px' }}>
                             <Send size={14} />

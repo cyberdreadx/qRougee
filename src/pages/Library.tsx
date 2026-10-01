@@ -5,6 +5,7 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { exportKeystore, importKeystore } from '../hooks/useKeystore';
+import { getNetworkId } from '../config/network';
 import { formatDuration, type Track } from '../data/mockData';
 import type { NftToken, NftCollection } from '@rougechain/sdk';
 
@@ -192,15 +193,17 @@ export default function LibraryPage() {
                     </span>
                 </div>
                 <div className="badge">{balance} XRGE</div>
-                <button
-                    className="btn btn-secondary"
-                    style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-                    onClick={requestFaucet}
-                    disabled={isLoading}
-                >
-                    <Droplets size={12} />
-                    {isLoading ? 'Requesting...' : 'Faucet'}
-                </button>
+                {getNetworkId() === 'testnet' && (
+                    <button
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 14px', fontSize: '0.75rem' }}
+                        onClick={requestFaucet}
+                        disabled={isLoading}
+                    >
+                        <Droplets size={12} />
+                        {isLoading ? 'Requesting...' : 'Faucet'}
+                    </button>
+                )}
                 {!isExtensionWallet && (
                     <button
                         className="btn btn-secondary"
