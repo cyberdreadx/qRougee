@@ -45,7 +45,10 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         title: token.name || 'Untitled',
         artist: attrs.artist || truncateCreator(token.creator || ''),
         album: collection.name || 'Unknown Collection',
-        duration: parseInt(String(attrs.duration || '0'), 10) || 210,
+        // 0 = unknown (legacy tracks minted before duration was captured). The
+        // player backfills the real length from the audio element on load, and
+        // formatDuration renders 0 as "--:--" rather than a fabricated time.
+        duration: parseInt(String(attrs.duration || '0'), 10) || 0,
         coverUrl: encodeIpfs(attrs.coverUrl) || collection.image || generateCover(token.token_id),
         audioUrl: encodeIpfs(attrs.audioUrl) || '',
         genre: attrs.genre || 'Unknown',
