@@ -59,7 +59,7 @@ export default function TradePage() {
             let myTokenBals: Record<string, number> = {};
             if (walletKeys?.publicKey) {
                 try {
-                    const balResp = await rc.getBalance(walletKeys.publicKey) as Record<string, unknown>;
+                    const balResp = await rc.getBalance(walletKeys.publicKey) as unknown as Record<string, unknown>;
                     const tb = (balResp.token_balances || {}) as Record<string, number>;
                     myTokenBals = tb;
                 } catch { /* ignore */ }
@@ -68,13 +68,13 @@ export default function TradePage() {
             // Fetch all tokens on-chain
             const allTokens = await rc.getTokens();
             const tokens: SongToken[] = (allTokens || [])
-                .filter((t: Record<string, unknown>) => {
-                    const sym = t.symbol as string;
+                .filter((t) => {
+                    const sym = (t as unknown as Record<string, unknown>).symbol as string;
                     if (!sym || sym === 'XRGE') return false;
                     return knownSongTokens.size === 0 || knownSongTokens.has(sym);
                 })
-                .map((t: Record<string, unknown>) => {
-                    const raw = t;
+                .map((t) => {
+                    const raw = t as unknown as Record<string, unknown>;
                     const sym = String(raw.symbol || '');
                     return {
                         symbol: sym,
@@ -89,8 +89,8 @@ export default function TradePage() {
             // Fetch DEX pools
             try {
                 const allPools = await rc.dex.getPools();
-                const poolList: PoolInfo[] = (allPools || []).map((p: Record<string, unknown>) => {
-                    const raw = p;
+                const poolList: PoolInfo[] = (allPools || []).map((p) => {
+                    const raw = p as unknown as Record<string, unknown>;
                     return {
                         poolId: String(raw.pool_id || raw.id || ''),
                         tokenA: String(raw.token_a || ''),

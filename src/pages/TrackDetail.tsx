@@ -9,7 +9,11 @@ import * as ext from '../utils/extensionSigner';
 import { MOCK_TRACKS, formatDuration } from '../data/mockData';
 import { explorerUrl } from '../utils/explorer';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
-import type { TrackStats, SocialComment, NftCollection } from '@rougechain/sdk';
+import { pubkeyToAddress } from '@rougechain/sdk';
+import { getApiBase } from '../config/network';
+import { getMarketplaceAddress } from '../config/marketplace';
+import { findListingForNft, listNft, buyListing, cancelListing, formatPriceXrge, type Listing } from '../utils/marketplace';
+import type { TrackStats, SocialComment } from '@rougechain/sdk';
 
 export default function TrackDetail() {
     const { id } = useParams<{ id: string }>();
@@ -66,6 +70,14 @@ export default function TrackDetail() {
     const [collectibleMinting, setCollectibleMinting] = useState(false);
     const [collectibleMintResult, setCollectibleMintResult] = useState<string | null>(null);
 
+    // Marketplace (escrow list/buy/cancel) — inert until a market address is configured
+    const marketAddr = getMarketplaceAddress();
+    const [listing, setListing] = useState<Listing | null>(null);
+    const [listPrice, setListPrice] = useState('');
+    const [sellerAddr, setSellerAddr] = useState('');
+    const [marketBusy, setMarketBusy] = useState(false);
+    const [marketMsg, setMarketMsg] = useState<string | null>(null);
+
     const loadSocial = useCallback(async () => {
         if (!id) return;
         try {
@@ -82,18 +94,34 @@ export default function TrackDetail() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { loadSocial(); }, [loadSocial]);
 
-    // Look up collectible collection for this track
+    // Look up the fan-mintable collectible collection for this track. It shares the
+    // master collection's id with the trailing `NFT` swapped for `COL`. We hit the
+    // collection endpoint directly (not via the SDK) so this doesn't depend on the
+    // bundled SDK build exposing getCollection, and we log failures instead of
+    // swallowing them — a silent catch here was indistinguishable from "no collectible".
     useEffect(() => {
         if (!track?.collectionId) return;
-        // Collectible collection ID is the same prefix but with COL suffix instead of NFT
         const colId = track.collectionId.replace(/NFT$/, 'COL');
-        if (colId === track.collectionId) return;
-        rc.nft.getCollection(colId)
-            .then((col: NftCollection) => {
-                if (col && col.public_mint) setCollectibleCol(col);
-            })
-            .catch(() => {});
-    }, [track?.collectionId, rc]);
+        if (colId === track.collectionId) return; // id doesn't end in NFT → no collectible
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`${getApiBase()}/nft/collection/${colId}`);
+                if (!res.ok) {
+                    if (res.status !== 404) console.warn('Collectible lookup failed', res.status, colId);
+                    return;
+                }
+                const col = await res.json();
+                // The node returns the mint count as `minted` (sometimes null) — normalize it.
+                if (!cancelled && col && col.public_mint) {
+                    setCollectibleCol({ ...col, minted: Number(col.minted ?? col.total_minted ?? 0) });
+                }
+            } catch (e) {
+                console.warn('Collectible lookup error', colId, e);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [track?.collectionId]);
 
     const handleCollectibleMint = async () => {
         if (!walletKeys || !collectibleCol || collectibleMinting) return;
@@ -123,6 +151,62 @@ export default function TrackDetail() {
 
     const isCreator = !!(walletKeys && track?.creator && walletKeys.publicKey === track.creator);
     const isOwner = !!(walletKeys && track?.owner && walletKeys.publicKey === track.owner);
+
+    // ── Marketplace ───────────────────────────────────────────────
+    // Raw contract calls need a local wallet's keys; extension/Qwalla signing
+    // for arbitrary contract calls isn't wired yet, so gate writes on that.
+    const canSignContracts = !!walletKeys && !isExtensionWallet;
+
+    const loadListing = useCallback(async () => {
+        if (!marketAddr || !track?.collectionId || !track?.tokenId) { setListing(null); return; }
+        const tokenIdNum = Number(track.tokenId.replace('tok_', ''));
+        try {
+            const l = await findListingForNft(rc, track.collectionId, tokenIdNum);
+            setListing(l);
+            if (l?.seller) {
+                try { setSellerAddr(await pubkeyToAddress(l.seller)); } catch { setSellerAddr(l.seller); }
+            }
+        } catch (e) { console.warn('Marketplace listing load failed', e); }
+    }, [marketAddr, track?.collectionId, track?.tokenId, rc]);
+
+    useEffect(() => { loadListing(); }, [loadListing]);
+
+    const handleList = async () => {
+        if (!walletKeys || !track?.collectionId || !track?.tokenId || marketBusy) return;
+        const p = parseFloat(listPrice);
+        if (isNaN(p) || p <= 0) { setMarketMsg('Enter a price greater than 0'); return; }
+        setMarketBusy(true); setMarketMsg(null);
+        try {
+            await listNft(rc, walletKeys, track.collectionId, Number(track.tokenId.replace('tok_', '')), listPrice);
+            setMarketMsg('Listed! It may take a moment to confirm on-chain.');
+            setListPrice('');
+            await loadListing();
+        } catch (e) { setMarketMsg(e instanceof Error ? e.message : 'Listing failed'); }
+        setMarketBusy(false);
+    };
+
+    const handleBuy = async () => {
+        if (!walletKeys || !listing || marketBusy) return;
+        setMarketBusy(true); setMarketMsg(null);
+        try {
+            await buyListing(rc, walletKeys, listing);
+            setMarketMsg('Purchased! The NFT is now in your wallet.');
+            await loadListing();
+            refetchTracks();
+        } catch (e) { setMarketMsg(e instanceof Error ? e.message : 'Purchase failed'); }
+        setMarketBusy(false);
+    };
+
+    const handleCancelListing = async () => {
+        if (!walletKeys || !listing || marketBusy) return;
+        setMarketBusy(true); setMarketMsg(null);
+        try {
+            await cancelListing(rc, walletKeys, listing.listing);
+            setMarketMsg('Listing cancelled.');
+            await loadListing();
+        } catch (e) { setMarketMsg(e instanceof Error ? e.message : 'Cancel failed'); }
+        setMarketBusy(false);
+    };
 
     // Load the collection royalty once, to preview what the sale will pay the creator.
     useEffect(() => {
@@ -169,7 +253,7 @@ export default function TrackDetail() {
             const tokenIdNum = track.tokenId.replace('tok_', '');
             const res = isExtensionWallet
                 ? await ext.nftBurn(walletKeys.publicKey, track.collectionId, tokenIdNum)
-                : await rc.nft.burn(walletKeys, { collectionId: track.collectionId, tokenId: tokenIdNum });
+                : await rc.nft.burn(walletKeys, { collectionId: track.collectionId, tokenId: Number(tokenIdNum) });
             if (res.success) {
                 navigate('/');
             }
@@ -190,7 +274,7 @@ export default function TrackDetail() {
             const tokenIdNum = track.tokenId.replace('tok_', '');
             const res = isExtensionWallet
                 ? await ext.nftTransfer(walletKeys.publicKey, track.collectionId, tokenIdNum, to, price)
-                : await rc.nft.transfer(walletKeys, { collectionId: track.collectionId, tokenId: tokenIdNum, to, salePrice: price });
+                : await rc.nft.transfer(walletKeys, { collectionId: track.collectionId, tokenId: Number(tokenIdNum), to, salePrice: price });
             if (res.success) {
                 setSellResult('Transferred! Redirecting…');
                 setTimeout(() => navigate('/'), 1500);
@@ -817,6 +901,79 @@ export default function TrackDetail() {
                             color: collectibleMintResult.includes('success') ? '#16a34a' : '#dc2626',
                         }}>
                             {collectibleMintResult}
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {/* Marketplace — escrow list / buy / cancel (hidden until a market address is set) */}
+            {marketAddr && (
+                <div className="section anime-stagger-item" style={{ marginTop: 32 }}>
+                    <h3 style={{ marginBottom: 16 }}>
+                        <Tag size={16} style={{ verticalAlign: -2, marginRight: 6 }} />
+                        Marketplace
+                    </h3>
+
+                    {listing && listing.active ? (
+                        <>
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Price</span>
+                                <span className="chain-info-value">{formatPriceXrge(listing.price)} XRGE</span>
+                            </div>
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Status</span>
+                                <span className="chain-info-value">
+                                    {listing.escrowed
+                                        ? (listing.seller === walletKeys?.publicKey ? 'Your listing' : `Listed by ${sellerAddr || '…'}`)
+                                        : 'Awaiting escrow'}
+                                </span>
+                            </div>
+                            {listing.escrowed && listing.seller !== walletKeys?.publicKey && (
+                                <button className="btn btn-primary" style={{ width: '100%', padding: '12px 20px', marginTop: 12 }}
+                                    onClick={handleBuy} disabled={marketBusy || !canSignContracts}>
+                                    {marketBusy
+                                        ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Working…</>
+                                        : <>Buy for {formatPriceXrge(listing.price)} XRGE</>}
+                                </button>
+                            )}
+                            {listing.seller === walletKeys?.publicKey && (
+                                <button className="btn btn-secondary" style={{ width: '100%', padding: '12px 20px', marginTop: 12 }}
+                                    onClick={handleCancelListing} disabled={marketBusy || !canSignContracts}>
+                                    {marketBusy ? 'Working…' : 'Cancel listing'}
+                                </button>
+                            )}
+                        </>
+                    ) : isOwner ? (
+                        <>
+                            <p className="text-sm text-muted" style={{ marginBottom: 12 }}>
+                                List this NFT for sale. It's held in escrow by the marketplace until sold or cancelled;
+                                on sale the collection's royalty is paid to its recipient automatically.
+                            </p>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <input className="form-input" type="number" min="0" step="0.01"
+                                    placeholder="Price in XRGE" value={listPrice}
+                                    onChange={e => setListPrice(e.target.value)} style={{ flex: 1 }} />
+                                <button className="btn btn-primary" onClick={handleList}
+                                    disabled={marketBusy || !canSignContracts || !listPrice}>
+                                    {marketBusy ? 'Listing…' : 'List for sale'}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-sm text-muted">Not listed for sale.</p>
+                    )}
+
+                    {!canSignContracts && (isOwner || (listing && listing.active)) && (
+                        <p className="text-xs text-muted" style={{ marginTop: 8 }}>
+                            Marketplace actions need a local wallet for now.
+                        </p>
+                    )}
+                    {marketMsg && (
+                        <p className="text-xs" style={{
+                            marginTop: 8, textAlign: 'center',
+                            color: /fail|error|not |need|enter/i.test(marketMsg) ? '#dc2626' : '#16a34a',
+                        }}>
+                            {marketMsg}
                         </p>
                     )}
                 </div>
