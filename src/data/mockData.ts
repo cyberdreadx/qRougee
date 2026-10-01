@@ -36,6 +36,8 @@ export interface Track {
   royaltyPayees?: RoyaltyPayee[];
   playGateThreshold?: number;
   premiumThreshold?: number;
+  /** SHA-256 content fingerprint of the audio, for duplicate-mint detection. */
+  audioHash?: string;
 }
 
 export interface Artist {

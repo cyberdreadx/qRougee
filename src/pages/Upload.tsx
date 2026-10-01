@@ -7,26 +7,13 @@ import {
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { pinFolder, pinJson } from '../utils/pinata';
-import { type RoyaltySplit, type RoyaltyPayee, GENRES } from '../data/mockData';
+import { type RoyaltySplit, type RoyaltyPayee, GENRES, formatDuration } from '../data/mockData';
 import { deploySplitter } from '../utils/royaltySplitter';
 import { getApiBase } from '../config/network';
+import { analyzeAudio } from '../utils/audioAnalysis';
+import WaveformPreview from '../components/WaveformPreview';
+import { useNftTracks } from '../hooks/useNftTracks';
 import * as ext from '../utils/extensionSigner';
-
-/** Read an audio file's duration (seconds) from its metadata, 0 if unreadable. */
-function readAudioDuration(file: File): Promise<number> {
-    return new Promise((resolve) => {
-        const url = URL.createObjectURL(file);
-        const a = new Audio();
-        a.preload = 'metadata';
-        a.onloadedmetadata = () => {
-            const d = a.duration;
-            URL.revokeObjectURL(url);
-            resolve(Number.isFinite(d) && d > 0 ? Math.round(d) : 0);
-        };
-        a.onerror = () => { URL.revokeObjectURL(url); resolve(0); };
-        a.src = url;
-    });
-}
 
 interface MintForm {
     title: string;
@@ -135,6 +122,18 @@ export default function UploadPage() {
     const [coverDataUrl, setCoverDataUrl] = useState<string>('');
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [audioDuration, setAudioDuration] = useState(0);
+    const [audioPeaks, setAudioPeaks] = useState<number[]>([]);
+    const [preview, setPreview] = useState<{ start: number; end: number } | null>(null);
+    const [audioHash, setAudioHash] = useState('');
+    const [analyzing, setAnalyzing] = useState(false);
+
+    // Duplicate-master guard: if this exact audio was already minted, surface the
+    // existing track so the user can't re-mint someone else's (or their own) master.
+    const { allTracksUnfiltered } = useNftTracks();
+    const duplicate = useMemo(
+        () => (audioHash ? allTracksUnfiltered.find((t) => t.audioHash && t.audioHash === audioHash) : undefined),
+        [audioHash, allTracksUnfiltered],
+    );
     const [isMinting, setIsMinting] = useState(false);
     const [mintSuccess, setMintSuccess] = useState(false);
     const [mintError, setMintError] = useState<string | null>(null);
@@ -192,6 +191,9 @@ export default function UploadPage() {
         }
         setAudioFile(null);
         setAudioDuration(0);
+        setAudioPeaks([]);
+        setPreview(null);
+        setAudioHash('');
     }, []);
 
     const removeDraft = useCallback((id: string) => {
@@ -269,13 +271,17 @@ export default function UploadPage() {
         (payeesTotal === 100 && form.royaltyPayees.every(p => p.address.trim() !== ''));
 
     const canProceed = () => {
-        if (step === 0) return !!form.title && !!form.artist;
+        if (step === 0) return !!form.title && !!form.artist && !duplicate;
         if (step === 2) return splitTotal === 100;
         return true;
     };
 
     const handlePublish = async () => {
         if (!walletKeys) return;
+        if (duplicate) {
+            setMintError(`This exact audio is already minted as "${duplicate.title}" by ${duplicate.artist}. Re-minting an existing master isn't allowed.`);
+            return;
+        }
         setIsMinting(true);
         setMintError(null);
 
@@ -339,6 +345,9 @@ export default function UploadPage() {
                 artist: form.artist,
                 genre: form.genre,
                 duration: audioDuration || undefined,
+                ...(audioPeaks.length > 0 ? { waveform: audioPeaks } : {}),
+                ...(preview ? { previewStart: preview.start, previewEnd: preview.end } : {}),
+                ...(audioHash ? { audioHash } : {}),
                 description: form.description,
                 collaborators: form.collaborators,
                 image: coverIpfsUrl,
@@ -588,6 +597,9 @@ export default function UploadPage() {
                                 setCoverFile(null);
                                 setAudioFile(null);
                                 setAudioDuration(0);
+                                setAudioPeaks([]);
+                                setPreview(null);
+                                setAudioHash('');
                                 setActiveDraftId(null);
                             }}
                         >
@@ -740,7 +752,18 @@ export default function UploadPage() {
                                     }
                                     setAudioFile(file);
                                     setAudioDuration(0);
-                                    readAudioDuration(file).then(setAudioDuration);
+                                    setAudioPeaks([]);
+                                    setPreview(null);
+                                    setAudioHash('');
+                                    setAnalyzing(true);
+                                    analyzeAudio(file)
+                                        .then((a) => {
+                                            setAudioDuration(a.duration);
+                                            setAudioPeaks(a.peaks);
+                                            setPreview({ start: a.previewStart, end: a.previewEnd });
+                                            setAudioHash(a.audioHash);
+                                        })
+                                        .finally(() => setAnalyzing(false));
                                 }} />
                             {audioFile && (
                                 <div className="audio-preview" style={{ marginTop: 8 }}>
@@ -749,6 +772,48 @@ export default function UploadPage() {
                                         src={audioPreviewUrl}
                                         style={{ width: '100%', height: 40, borderRadius: 'var(--radius)' }}
                                     />
+                                    {analyzing && (
+                                        <p className="text-xs text-muted" style={{ marginTop: 6 }}>
+                                            Analyzing audio — building waveform &amp; picking the hook…
+                                        </p>
+                                    )}
+                                    {audioPeaks.length > 0 && (
+                                        <div style={{ marginTop: 10 }}>
+                                            <WaveformPreview
+                                                peaks={audioPeaks}
+                                                duration={audioDuration}
+                                                previewStart={preview?.start}
+                                                previewEnd={preview?.end}
+                                            />
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                                                <span className="text-xs text-muted">
+                                                    Length {formatDuration(audioDuration)}
+                                                </span>
+                                                {preview && (
+                                                    <span className="text-xs" style={{ color: 'var(--accent)' }}>
+                                                        Hook {formatDuration(preview.start)}–{formatDuration(preview.end)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+                                                The highlighted window is the free preview hook — token-gated plays
+                                                stream this; holders get the full track. It also scores reels on RouGee.
+                                            </p>
+                                        </div>
+                                    )}
+                                    {duplicate ? (
+                                        <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 'var(--radius)', background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)' }}>
+                                            <p className="text-xs" style={{ color: '#f87171', margin: 0 }}>
+                                                ⚠ This exact audio is already minted as <strong>{duplicate.title}</strong> by {duplicate.artist}
+                                                {duplicate.mintDate ? ` on ${duplicate.mintDate}` : ''}.{' '}
+                                                <Link to={`/track/${duplicate.id}`} style={{ color: '#f87171', textDecoration: 'underline' }}>View the original</Link>
+                                            </p>
+                                        </div>
+                                    ) : audioHash && !analyzing ? (
+                                        <p className="text-xs" style={{ color: '#34d399', marginTop: 8 }}>
+                                            ✓ Original — this master hasn't been minted on qRougee before.
+                                        </p>
+                                    ) : null}
                                 </div>
                             )}
                         </div>
