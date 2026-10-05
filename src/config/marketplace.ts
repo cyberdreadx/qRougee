@@ -13,7 +13,7 @@ import { getNetworkId, type NetworkId } from './network';
  */
 const MARKETPLACE_ADDRESS: Record<NetworkId, string> = {
     mainnet: '',
-    testnet: '',
+    testnet: 'c05cd63141da72a84f905065dd02acb3a55df991',
 };
 
 /** The market contract address for the current network, or null if not deployed yet. */
