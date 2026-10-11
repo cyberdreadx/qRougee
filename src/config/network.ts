@@ -23,6 +23,20 @@ export const NETWORKS: Record<NetworkId, NetworkInfo> = {
 const STORAGE_KEY = 'rougechain:network';
 const DEFAULT_NETWORK: NetworkId = 'mainnet';
 
+/**
+ * Deployed NFT-marketplace escrow contract per network (see
+ * quantum-vault/contracts/nft_marketplace). Empty = not deployed there yet, so
+ * the Marketplace is hidden/disabled on that network.
+ */
+export const MARKETPLACE_CONTRACTS: Record<NetworkId, string> = {
+    testnet: 'c05cd63141da72a84f905065dd02acb3a55df991',
+    mainnet: '', // not deployed to mainnet yet
+};
+
+export function getMarketplaceAddress(): string {
+    return MARKETPLACE_CONTRACTS[getNetworkId()] || '';
+}
+
 export function getNetworkId(): NetworkId {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);

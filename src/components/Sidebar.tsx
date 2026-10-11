@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Search, Library, Upload, Wallet, X, ArrowLeftRight, TrendingUp, Sun, Moon, Compass } from 'lucide-react';
+import { Home, Search, Library, Upload, Wallet, X, ArrowLeftRight, TrendingUp, Sun, Moon, Compass, Tag } from 'lucide-react';
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useSidebar } from '../hooks/useSidebar';
 import { useTheme } from '../hooks/useTheme';
@@ -114,6 +114,13 @@ export default function Sidebar() {
                     >
                         <ArrowLeftRight />
                         Trade
+                    </NavLink>
+                    <NavLink
+                        to="/marketplace"
+                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
+                    >
+                        <Tag />
+                        Marketplace
                     </NavLink>
                     <NavLink
                         to="/royalties"

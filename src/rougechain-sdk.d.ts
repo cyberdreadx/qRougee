@@ -48,6 +48,36 @@ declare module '@rougechain/sdk' {
     export function bytesToHex(bytes: Uint8Array): string;
     export function hexToBytes(hex: string): Uint8Array;
 
+    /** XRGE → quanta (1 XRGE = 1_000_000_000 quanta). */
+    export function xrgeToQuanta(xrge: number | string): bigint;
+    /** quanta → XRGE decimal string. */
+    export function quantaToXrge(quanta: bigint | number | string): string;
+    /** Derive a rouge1… address from an ML-DSA-65 public key hex. */
+    export function pubkeyToAddress(publicKeyHex: string): Promise<string>;
+
+    export interface ContractQueryResult {
+        success: boolean;
+        error?: string | null;
+        returnData?: unknown;
+        events?: unknown[];
+        gasUsed?: number;
+    }
+    export interface ContractCallResult {
+        success?: boolean;
+        error?: string;
+        txId?: string;
+        returnData?: unknown;
+    }
+    export interface ContractAttach {
+        symbol: string;
+        amount: bigint | number | string;
+    }
+    export interface GameContract {
+        readonly address: string;
+        call(method: string, args?: unknown, opts?: { gasLimit?: number; attach?: ContractAttach }): Promise<ContractCallResult>;
+        query(method: string, args?: unknown): Promise<ContractQueryResult>;
+    }
+
     export class RougeChain {
         constructor(baseUrl: string);
 
@@ -104,6 +134,15 @@ declare module '@rougechain/sdk' {
 
             hideTrack(wallet: WalletKeys, trackId: string, hidden?: boolean): Promise<{ success: boolean; error?: string; hidden?: boolean }>;
             getHiddenTracks(pubkey: string): Promise<string[]>;
+        };
+
+        contracts: {
+            /** Free, unsigned read-only call. */
+            query(contractAddr: string, method: string, args?: unknown, caller?: string): Promise<ContractQueryResult>;
+            /** A handle bound to one contract + signer for signed `.call()`s. */
+            game(contractAddr: string, wallet?: WalletKeys): GameContract;
+            /** Wait for a contract-call tx to land in a block. */
+            waitForReceipt(txId: string, opts?: { timeoutMs?: number; intervalMs?: number }): Promise<unknown>;
         };
     }
 

@@ -5,6 +5,7 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
+import { useMarketplace } from '../hooks/useMarketplace';
 import * as ext from '../utils/extensionSigner';
 import { MOCK_TRACKS, formatDuration } from '../data/mockData';
 import { explorerUrl } from '../utils/explorer';
@@ -46,6 +47,12 @@ export default function TrackDetail() {
     const [sellPrice, setSellPrice] = useState('');
     const [sellLoading, setSellLoading] = useState(false);
     const [sellResult, setSellResult] = useState<string | null>(null);
+    // List on the escrow marketplace (contract-backed, atomic buy for buyers)
+    const { list: listOnMarket, market: marketAddr, canWrite: marketCanWrite } = useMarketplace();
+    const [listOpen, setListOpen] = useState(false);
+    const [listPrice, setListPrice] = useState('');
+    const [listLoading, setListLoading] = useState(false);
+    const [listResult, setListResult] = useState<string | null>(null);
     const [saleRoyaltyBps, setSaleRoyaltyBps] = useState<number | null>(null);
 
     // A freshly minted track can lag chain indexing; retry a few times before "not found".
@@ -202,6 +209,24 @@ export default function TrackDetail() {
             setSellResult(e instanceof Error ? e.message : 'Transfer failed');
         }
         setSellLoading(false);
+    };
+
+    const handleListOnMarket = async () => {
+        if (!walletKeys || !track?.collectionId || !track?.tokenId || listLoading) return;
+        const price = parseFloat(listPrice);
+        if (isNaN(price) || price <= 0) { setListResult('Enter a valid price'); return; }
+        setListLoading(true);
+        setListResult(null);
+        try {
+            const tokenIdNum = parseInt(track.tokenId.replace('tok_', ''), 10);
+            setListResult('Listing… (two steps: list, then escrow — approve both)');
+            await listOnMarket(track.collectionId, tokenIdNum, listPrice);
+            setListResult('Listed & escrowed! Redirecting to Marketplace…');
+            setTimeout(() => navigate('/marketplace'), 1400);
+        } catch (e) {
+            setListResult(e instanceof Error ? e.message : 'Listing failed');
+        }
+        setListLoading(false);
     };
 
     const handleDistribute = async () => {
@@ -499,6 +524,75 @@ export default function TrackDetail() {
                                             className="btn btn-secondary"
                                             onClick={() => { setSellOpen(false); setSellResult(null); }}
                                             disabled={sellLoading}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Owner: list on the escrow marketplace (atomic buy + royalty for buyers) */}
+                    {isOwner && marketAddr && (
+                        <div style={{ marginTop: 12 }}>
+                            {!listOpen ? (
+                                <button
+                                    className="btn btn-primary"
+                                    style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                                    onClick={() => { setListOpen(true); setListResult(null); }}
+                                >
+                                    <Tag size={14} /> List on Marketplace
+                                </button>
+                            ) : (
+                                <div style={{
+                                    padding: 16, border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius)', background: 'var(--surface)',
+                                }}>
+                                    <p style={{ margin: '0 0 12px', fontWeight: 600 }}>List this NFT for sale</p>
+                                    <p className="text-sm text-muted" style={{ margin: '0 0 12px', fontSize: '0.7rem' }}>
+                                        Anyone can buy it at your price in one call — the contract pays the creator
+                                        royalty and the rest to you, and hands the NFT to the buyer. Two approvals:
+                                        <strong> list</strong>, then <strong>escrow</strong> (the NFT moves to the contract).
+                                    </p>
+                                    <div style={{ marginBottom: 10 }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Price (XRGE)</label>
+                                        <input
+                                            className="form-input"
+                                            type="number"
+                                            min="0"
+                                            placeholder="0"
+                                            value={listPrice}
+                                            onChange={e => setListPrice(e.target.value)}
+                                        />
+                                    </div>
+                                    {!marketCanWrite && (
+                                        <p className="text-sm text-muted" style={{ margin: '0 0 12px', fontSize: '0.72rem' }}>
+                                            Listing needs a local wallet for now (extension contract calls coming soon).
+                                        </p>
+                                    )}
+                                    {listResult && (
+                                        <p style={{
+                                            margin: '0 0 12px', fontSize: '0.8rem', fontWeight: 500,
+                                            color: listResult.includes('Listed') ? '#16a34a'
+                                                : listResult.includes('Listing…') ? 'var(--text-muted, #888)' : '#dc2626',
+                                        }}>
+                                            {listResult}
+                                        </p>
+                                    )}
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={handleListOnMarket}
+                                            disabled={listLoading || !marketCanWrite || !(parseFloat(listPrice) > 0)}
+                                        >
+                                            {listLoading ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Tag size={14} />}
+                                            List for sale
+                                        </button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => { setListOpen(false); setListResult(null); }}
+                                            disabled={listLoading}
                                         >
                                             Cancel
                                         </button>
