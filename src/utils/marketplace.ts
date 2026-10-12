@@ -105,7 +105,7 @@ export async function listNft(
         });
         if (!listed.success) throw new Error(listed.error || 'Could not create listing');
         // 2) escrow the NFT into the contract (no price → not a sale, no royalty)
-        const escrow = await ext.nftTransfer(signer.publicKey, collection, String(tokenId), market);
+        const escrow = await ext.nftTransfer(signer.publicKey, collection, tokenId, market);
         if (!escrow.success) {
             throw new Error(escrow.error || 'Listing created but escrow transfer failed — cancel and retry');
         }
