@@ -113,6 +113,122 @@ async function signAndSubmit(endpoint: string, payload: Payload, publicKey: stri
     return submitSigned(endpoint, signedTx);
 }
 
+// ── Smart contract calls (GAME_READY) ─────────────────────────────
+//
+// Contract calls are signed CLIENT-SIDE and submitted to /v2/contract/execute
+// (the old node-signed /v2/contract/call is deprecated). We build the exact
+// payload the SDK's createSignedContractCall produces — type "contract_call"
+// plus the chainId applyChainId adds — have the extension sign it, and submit
+// the signed tx. Payable calls (e.g. marketplace `buy`) carry an attached
+// payment { symbol, amount } (amount in quanta for XRGE).
+
+const CONTRACT_MAX_GAS = 10_000_000;
+
+function suggestGasLimit(gasUsed: number): number {
+    return Math.min(Math.ceil((Number(gasUsed) || 0) * 1.5) + 1000, CONTRACT_MAX_GAS);
+}
+
+let cachedChainId: string | undefined;
+async function getChainId(): Promise<string | undefined> {
+    if (cachedChainId) return cachedChainId;
+    try {
+        const res = await fetch(`${getApiBase()}/health`);
+        const data = await res.json();
+        if (typeof data?.chain_id === 'string' && data.chain_id) {
+            cachedChainId = data.chain_id;
+            return cachedChainId;
+        }
+    } catch { /* node unreachable — sign without chainId and let the node decide */ }
+    return undefined;
+}
+
+export interface ContractAttach {
+    symbol: string;
+    amount: number | bigint | string;
+}
+
+function normalizeAttach(attach: ContractAttach): { symbol: string; amount: number } {
+    const symbol = String(attach.symbol).trim().toUpperCase();
+    const amount = Number(attach.amount);
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+        throw new Error('Payment amount must be a positive integer (quanta for XRGE).');
+    }
+    return { symbol, amount };
+}
+
+export interface ContractQueryResult {
+    success: boolean;
+    error?: string | null;
+    returnData?: unknown;
+    gasUsed?: number;
+    events?: unknown[];
+}
+
+/** Free, read-only contract query (no wallet / signature needed). */
+export async function contractQuery(
+    contractAddr: string,
+    method: string,
+    args: unknown = {},
+    caller?: string,
+    attach?: ContractAttach,
+): Promise<ContractQueryResult> {
+    const body: Record<string, unknown> = { method, args };
+    if (caller) body.caller = caller;
+    if (attach) body.attach = normalizeAttach(attach);
+    try {
+        const res = await fetch(
+            `${getApiBase()}/contract/${encodeURIComponent(contractAddr.trim().toLowerCase())}/query`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+        );
+        const data = await res.json().catch(() => ({}));
+        return {
+            success: data.success === true,
+            error: data.error,
+            returnData: data.returnData,
+            gasUsed: Number(data.gasUsed ?? 0),
+            events: data.events ?? [],
+        };
+    } catch (e: unknown) {
+        return { success: false, error: errMessage(e) || 'query failed' };
+    }
+}
+
+/** Signed contract call through the extension. Payable via `opts.attach`. */
+export async function contractCall(
+    publicKey: string,
+    contractAddr: string,
+    method: string,
+    args: unknown = {},
+    opts: { attach?: ContractAttach; gasLimit?: number } = {},
+): Promise<ApiResult & { txId?: string }> {
+    const addr = contractAddr.trim().toLowerCase();
+    const attach = opts.attach ? normalizeAttach(opts.attach) : undefined;
+
+    // Estimate gas + dry-run reject, mirroring the SDK (query with caller + attach).
+    let gasLimit = opts.gasLimit;
+    if (gasLimit === undefined) {
+        const q = await contractQuery(addr, method, args, publicKey, opts.attach);
+        if (!q.success) return { success: false, error: q.error || 'call would fail' };
+        gasLimit = suggestGasLimit(q.gasUsed ?? 0);
+    }
+
+    const chainId = await getChainId();
+    const payload: Payload = {
+        type: 'contract_call',
+        from: publicKey,
+        contractAddr: addr,
+        method,
+        args: args ?? {},
+        gasLimit,
+        ...(attach ? { attach } : {}),
+        ...(chainId ? { chainId } : {}),
+        timestamp: Date.now(),
+        nonce: generateNonce(),
+    };
+    const r = await signAndSubmit('/v2/contract/execute', payload, publicKey);
+    return { ...r, txId: (r.data as { txId?: string } | undefined)?.txId };
+}
+
 // ── NFT Operations ────────────────────────────────────────────────
 
 export async function nftCreateCollection(
