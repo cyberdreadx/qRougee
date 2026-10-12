@@ -399,9 +399,11 @@ export async function socialHideTrack(publicKey: string, trackId: string, hidden
     return signAndSubmit('/v2/social/hide-track', payload, publicKey);
 }
 
-export async function nftBurn(publicKey: string, collectionId: string, tokenId: string): Promise<ApiResult> {
+export async function nftBurn(publicKey: string, collectionId: string, tokenId: string | number): Promise<ApiResult> {
     const payload: Payload = {
-        type: 'nft_burn', from: publicKey, collectionId, tokenId, fee: 1,
+        // tokenId MUST be a JSON number — the node reads it with as_u64(); a
+        // string falls back to token 0 and the call fails with "NFT not found".
+        type: 'nft_burn', from: publicKey, collectionId, tokenId: Number(tokenId), fee: 1,
         timestamp: Date.now(), nonce: generateNonce(),
     };
     return signAndSubmit('/v2/nft/burn', payload, publicKey);
@@ -410,12 +412,14 @@ export async function nftBurn(publicKey: string, collectionId: string, tokenId: 
 export async function nftTransfer(
     publicKey: string,
     collectionId: string,
-    tokenId: string,
+    tokenId: string | number,
     to: string,
     salePrice?: number
 ): Promise<ApiResult> {
     const payload: Payload = {
-        type: 'nft_transfer', from: publicKey, collectionId, tokenId, to, fee: 1,
+        // tokenId MUST be a JSON number — the node reads it with as_u64(); a
+        // string falls back to token 0 and the call fails with "NFT not found".
+        type: 'nft_transfer', from: publicKey, collectionId, tokenId: Number(tokenId), to, fee: 1,
         ...(salePrice != null ? { salePrice } : {}),
         timestamp: Date.now(), nonce: generateNonce(),
     };
