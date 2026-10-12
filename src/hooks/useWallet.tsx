@@ -47,6 +47,8 @@ interface InjectedProvider {
     connect(): Promise<{ publicKey: string }>;
     signTransaction?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>;
     signAndSendTransaction?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    on?: (event: string, cb: (data: unknown) => void) => void;
+    removeListener?: (event: string, cb: (data: unknown) => void) => void;
 }
 
 function injectedProvider(): InjectedProvider | undefined {
@@ -314,6 +316,45 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             connectError: null,
         });
     }, []);
+
+    // Re-sync the active extension account. The native provider doesn't emit an
+    // account-change event, but connect() is silent for an already-approved
+    // origin and returns the CURRENTLY active account — so when the user switches
+    // accounts in Qwalla and comes back to the tab, we pick up the new one.
+    const syncExtensionAccount = useCallback(async () => {
+        if (!isExtensionWallet) return;
+        const provider = injectedProvider();
+        if (!provider?.isRougeChain) return;
+        let pk: string | undefined;
+        try {
+            const result = (await provider.connect()) as { publicKey?: string };
+            pk = result?.publicKey;
+        } catch {
+            return; // wallet briefly locked / unavailable — leave state as-is
+        }
+        if (!pk || pk === state.publicKey) return; // unchanged
+        const keys: WalletKeys = { publicKey: pk, privateKey: '' };
+        setWalletKeys(keys);
+        await saveSessionKeys(keys);
+        const addr = await pubkeyToAddress(pk).catch(() => null);
+        setState(prev => ({ ...prev, publicKey: pk!, address: addr, isConnected: true }));
+        await fetchBalance(pk);
+    }, [isExtensionWallet, state.publicKey, fetchBalance]);
+
+    useEffect(() => {
+        if (!isExtensionWallet) return;
+        const onVisible = () => { if (document.visibilityState === 'visible') void syncExtensionAccount(); };
+        const onChanged = () => void syncExtensionAccount();
+        const provider = injectedProvider();
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
+        provider?.on?.('accountsChanged', onChanged); // future-proof if the extension starts emitting it
+        return () => {
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+            provider?.removeListener?.('accountsChanged', onChanged);
+        };
+    }, [isExtensionWallet, syncExtensionAccount]);
 
     const requestFaucet = useCallback(async () => {
         if (!walletKeys) return;
