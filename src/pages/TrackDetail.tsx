@@ -568,7 +568,7 @@ export default function TrackDetail() {
                                     </div>
                                     {!marketCanWrite && (
                                         <p className="text-sm text-muted" style={{ margin: '0 0 12px', fontSize: '0.72rem' }}>
-                                            Listing needs a local wallet for now (extension contract calls coming soon).
+                                            Connect a wallet to list.
                                         </p>
                                     )}
                                     {listResult && (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { xrgeToQuanta, quantaToXrge, pubkeyToAddress } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { useWallet } from './useWallet';
+import * as ext from '../utils/extensionSigner';
 import { getMarketplaceAddress } from '../config/network';
 
 /**
@@ -43,7 +44,9 @@ export function useMarketplace() {
     const rc = useRougeChain();
     const { publicKey, walletKeys, isExtensionWallet } = useWallet();
     const market = getMarketplaceAddress();
-    const canWrite = Boolean(walletKeys) && !isExtensionWallet;
+    // Local wallets sign via the SDK; extension wallets sign contract calls via
+    // the extension bridge (ext.contractCall). Either can buy/list/cancel.
+    const canWrite = Boolean(walletKeys) || (isExtensionWallet && Boolean(publicKey));
 
     const [listings, setListings] = useState<Listing[]>([]);
     const [loading, setLoading] = useState(false);
@@ -101,27 +104,38 @@ export function useMarketplace() {
     /** Buy a listing — attaches the exact price; contract settles royalty + seller. */
     const buy = useCallback(
         async (listing: Listing) => {
-            if (!walletKeys || isExtensionWallet) throw new Error('Connect a local wallet to buy.');
-            const res = await rc.contracts
-                .game(market, walletKeys)
-                .call('buy', { listing: listing.id }, { attach: { symbol: 'XRGE', amount: listing.price } });
-            if (res.txId) await rc.contracts.waitForReceipt(res.txId).catch(() => undefined);
+            const attach = { symbol: 'XRGE', amount: listing.price };
+            if (isExtensionWallet) {
+                if (!publicKey) throw new Error('Connect your wallet to buy.');
+                const r = await ext.contractCall(publicKey, market, 'buy', { listing: listing.id }, { attach });
+                if (!r.success) throw new Error(r.error || 'Purchase failed');
+                if (r.txId) await rc.contracts.waitForReceipt(r.txId).catch(() => undefined);
+            } else {
+                if (!walletKeys) throw new Error('Connect a wallet to buy.');
+                const res = await rc.contracts.game(market, walletKeys).call('buy', { listing: listing.id }, { attach });
+                if (res.txId) await rc.contracts.waitForReceipt(res.txId).catch(() => undefined);
+            }
             await refresh();
-            return res;
         },
-        [rc, market, walletKeys, isExtensionWallet, refresh],
+        [rc, market, walletKeys, isExtensionWallet, publicKey, refresh],
     );
 
     /** Cancel your own listing — returns the escrowed NFT. */
     const cancel = useCallback(
         async (listing: Listing) => {
-            if (!walletKeys || isExtensionWallet) throw new Error('Connect a local wallet to cancel.');
-            const res = await rc.contracts.game(market, walletKeys).call('cancel', { listing: listing.id });
-            if (res.txId) await rc.contracts.waitForReceipt(res.txId).catch(() => undefined);
+            if (isExtensionWallet) {
+                if (!publicKey) throw new Error('Connect your wallet to cancel.');
+                const r = await ext.contractCall(publicKey, market, 'cancel', { listing: listing.id });
+                if (!r.success) throw new Error(r.error || 'Cancel failed');
+                if (r.txId) await rc.contracts.waitForReceipt(r.txId).catch(() => undefined);
+            } else {
+                if (!walletKeys) throw new Error('Connect a wallet to cancel.');
+                const res = await rc.contracts.game(market, walletKeys).call('cancel', { listing: listing.id });
+                if (res.txId) await rc.contracts.waitForReceipt(res.txId).catch(() => undefined);
+            }
             await refresh();
-            return res;
         },
-        [rc, market, walletKeys, isExtensionWallet, refresh],
+        [rc, market, walletKeys, isExtensionWallet, publicKey, refresh],
     );
 
     /**
@@ -131,17 +145,24 @@ export function useMarketplace() {
      */
     const list = useCallback(
         async (collectionId: string, tokenId: number, priceXrge: string) => {
-            if (!walletKeys || isExtensionWallet) throw new Error('Connect a local wallet to list.');
             const priceQuanta = Number(xrgeToQuanta(priceXrge));
             if (!(priceQuanta > 0)) throw new Error('Enter a valid price.');
-            const g = rc.contracts.game(market, walletKeys);
-            const listed = await g.call('list', { collection: collectionId, token_id: tokenId, price: priceQuanta });
-            if (listed.txId) await rc.contracts.waitForReceipt(listed.txId); // must mine before escrow
-            const escrow = await rc.nft.transfer(walletKeys, { collectionId, tokenId, to: market });
+            if (isExtensionWallet) {
+                if (!publicKey) throw new Error('Connect your wallet to list.');
+                const r = await ext.contractCall(publicKey, market, 'list', { collection: collectionId, token_id: tokenId, price: priceQuanta });
+                if (!r.success) throw new Error(r.error || 'Listing failed');
+                if (r.txId) await rc.contracts.waitForReceipt(r.txId); // must mine before escrow
+                const esc = await ext.nftTransfer(publicKey, collectionId, String(tokenId), market);
+                if (!esc.success) throw new Error(esc.error || 'Escrow transfer failed');
+            } else {
+                if (!walletKeys) throw new Error('Connect a wallet to list.');
+                const listed = await rc.contracts.game(market, walletKeys).call('list', { collection: collectionId, token_id: tokenId, price: priceQuanta });
+                if (listed.txId) await rc.contracts.waitForReceipt(listed.txId); // must mine before escrow
+                await rc.nft.transfer(walletKeys, { collectionId, tokenId, to: market });
+            }
             await refresh();
-            return { listed, escrow };
         },
-        [rc, market, walletKeys, isExtensionWallet, refresh],
+        [rc, market, walletKeys, isExtensionWallet, publicKey, refresh],
     );
 
     return { market, listings, loading, error, refresh, buy, cancel, list, canWrite };

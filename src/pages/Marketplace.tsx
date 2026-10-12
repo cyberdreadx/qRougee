@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Tag, Loader, RefreshCw, X } from 'lucide-react';
 import { useMarketplace, type Listing } from '../hooks/useMarketplace';
 import { useNftTracks } from '../hooks/useNftTracks';
-import { useWallet } from '../hooks/useWallet';
 import { getNetwork } from '../config/network';
 
 function shortKey(k: string): string {
@@ -16,7 +15,6 @@ export default function Marketplace() {
     const navigate = useNavigate();
     const { market, listings, loading, error, refresh, buy, cancel, canWrite } = useMarketplace();
     const { allTracksUnfiltered: tracks } = useNftTracks();
-    const { isExtensionWallet, walletKeys } = useWallet();
 
     const [busyId, setBusyId] = useState<number | null>(null);
     const [msg, setMsg] = useState<string | null>(null);
@@ -79,13 +77,7 @@ export default function Marketplace() {
             </p>
 
             {!canWrite && (
-                <div className="badge" style={{ marginBottom: 16 }}>
-                    {isExtensionWallet
-                        ? 'Buying/selling needs a local wallet for now (extension contract calls coming soon).'
-                        : walletKeys
-                          ? ''
-                          : 'Connect a wallet to buy or list.'}
-                </div>
+                <div className="badge" style={{ marginBottom: 16 }}>Connect a wallet to buy or list.</div>
             )}
 
             {msg && (
