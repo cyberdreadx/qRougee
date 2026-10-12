@@ -13,14 +13,26 @@
  * given, `listing` returns it, and `buy` attaches it back unchanged). The UI
  * works in XRGE and converts at the edges with xrgeToQuanta / quantaToXrge.
  *
- * NOTE: signed calls (list/buy/cancel) need a local wallet's keys. Extension /
- * Qwalla signing for raw contract calls isn't wired yet — callers should gate
- * these on a local wallet. All of this is inert until the market address is
+ * NOTE: signed calls (list/buy/cancel) take a MarketSigner — a local wallet
+ * (signed via the SDK) or an extension / Qwalla wallet (signed via the extension
+ * bridge, ext.contractCall). All of this is inert until the market address is
  * configured (see config/marketplace) and the chain upgrade is active.
  */
 import { xrgeToQuanta, quantaToXrge } from '@rougechain/sdk';
 import type { RougeChain, WalletKeys } from '@rougechain/sdk';
 import { getMarketplaceAddress } from '../config/marketplace';
+import * as ext from './extensionSigner';
+
+/**
+ * Who signs a marketplace write. A local wallet signs via the SDK; an extension
+ * (Qwalla) wallet signs the contract call through the extension bridge. Either
+ * can list / buy / cancel.
+ */
+export interface MarketSigner {
+    publicKey: string;
+    walletKeys?: WalletKeys | null;
+    isExtension: boolean;
+}
 
 export interface Listing {
     listing: number;
@@ -81,10 +93,25 @@ export async function findListingForNft(
 
 /** Register a listing, then escrow the NFT into the marketplace contract. */
 export async function listNft(
-    rc: RougeChain, wallet: WalletKeys,
+    rc: RougeChain, signer: MarketSigner,
     collection: string, tokenId: number, priceXrge: string | number,
 ): Promise<void> {
     const market = marketOrThrow();
+    if (signer.isExtension) {
+        // 1) register — price must be a JSON integer (quanta) in the signed args
+        const priceQuanta = Number(xrgeToQuanta(priceXrge));
+        const listed = await ext.contractCall(signer.publicKey, market, 'list', {
+            collection, token_id: tokenId, price: priceQuanta,
+        });
+        if (!listed.success) throw new Error(listed.error || 'Could not create listing');
+        // 2) escrow the NFT into the contract (no price → not a sale, no royalty)
+        const escrow = await ext.nftTransfer(signer.publicKey, collection, String(tokenId), market);
+        if (!escrow.success) {
+            throw new Error(escrow.error || 'Listing created but escrow transfer failed — cancel and retry');
+        }
+        return;
+    }
+    const wallet = signer.walletKeys as WalletKeys;
     const price = xrgeToQuanta(priceXrge); // quanta (bigint)
     // 1) register the listing — caller must own the NFT
     const listed = await rc.contracts.game(market, wallet).call('list', {
@@ -99,13 +126,19 @@ export async function listNft(
 }
 
 /** Buy an escrowed listing; payment is attached to the call in quanta. */
-export async function buyListing(rc: RougeChain, wallet: WalletKeys, listing: Listing): Promise<void> {
+export async function buyListing(rc: RougeChain, signer: MarketSigner, listing: Listing): Promise<void> {
     const market = marketOrThrow();
     if (!listing.exists || !listing.active || !listing.escrowed) {
         throw new Error('This listing is not available to buy');
     }
     if (listing.price == null) throw new Error('Listing has no price');
-    const res = await rc.contracts.game(market, wallet).call(
+    const attach = { symbol: 'XRGE', amount: Number(listing.price) };
+    if (signer.isExtension) {
+        const r = await ext.contractCall(signer.publicKey, market, 'buy', { listing: listing.listing }, { attach });
+        if (!r.success) throw new Error(r.error || 'Purchase failed');
+        return;
+    }
+    const res = await rc.contracts.game(market, signer.walletKeys as WalletKeys).call(
         'buy',
         { listing: listing.listing },
         { attach: { symbol: 'XRGE', amount: listing.price } },
@@ -114,9 +147,14 @@ export async function buyListing(rc: RougeChain, wallet: WalletKeys, listing: Li
 }
 
 /** Cancel a listing (seller only); returns the NFT if it was escrowed. */
-export async function cancelListing(rc: RougeChain, wallet: WalletKeys, id: number): Promise<void> {
+export async function cancelListing(rc: RougeChain, signer: MarketSigner, id: number): Promise<void> {
     const market = marketOrThrow();
-    const res = await rc.contracts.game(market, wallet).call('cancel', { listing: id });
+    if (signer.isExtension) {
+        const r = await ext.contractCall(signer.publicKey, market, 'cancel', { listing: id });
+        if (!r.success) throw new Error(r.error || 'Cancel failed');
+        return;
+    }
+    const res = await rc.contracts.game(market, signer.walletKeys as WalletKeys).call('cancel', { listing: id });
     if (!res.success) throw new Error(res.error || 'Cancel failed');
 }
 

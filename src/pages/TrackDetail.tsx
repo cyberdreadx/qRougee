@@ -153,9 +153,13 @@ export default function TrackDetail() {
     const isOwner = !!(walletKeys && track?.owner && walletKeys.publicKey === track.owner);
 
     // ── Marketplace ───────────────────────────────────────────────
-    // Raw contract calls need a local wallet's keys; extension/Qwalla signing
-    // for arbitrary contract calls isn't wired yet, so gate writes on that.
-    const canSignContracts = !!walletKeys && !isExtensionWallet;
+    // Contract calls are signed by either a local wallet (via the SDK) or the
+    // extension/Qwalla bridge (ext.contractCall), so any connected wallet can
+    // list / buy / cancel.
+    const canSignContracts = !!walletKeys;
+    const marketSigner = walletKeys
+        ? { publicKey: walletKeys.publicKey, walletKeys, isExtension: isExtensionWallet }
+        : null;
 
     const loadListing = useCallback(async () => {
         if (!marketAddr || !track?.collectionId || !track?.tokenId) { setListing(null); return; }
@@ -177,7 +181,7 @@ export default function TrackDetail() {
         if (isNaN(p) || p <= 0) { setMarketMsg('Enter a price greater than 0'); return; }
         setMarketBusy(true); setMarketMsg(null);
         try {
-            await listNft(rc, walletKeys, track.collectionId, Number(track.tokenId.replace('tok_', '')), listPrice);
+            await listNft(rc, marketSigner!, track.collectionId, Number(track.tokenId.replace('tok_', '')), listPrice);
             setMarketMsg('Listed! It may take a moment to confirm on-chain.');
             setListPrice('');
             await loadListing();
@@ -189,7 +193,7 @@ export default function TrackDetail() {
         if (!walletKeys || !listing || marketBusy) return;
         setMarketBusy(true); setMarketMsg(null);
         try {
-            await buyListing(rc, walletKeys, listing);
+            await buyListing(rc, marketSigner!, listing);
             setMarketMsg('Purchased! The NFT is now in your wallet.');
             await loadListing();
             refetchTracks();
@@ -201,7 +205,7 @@ export default function TrackDetail() {
         if (!walletKeys || !listing || marketBusy) return;
         setMarketBusy(true); setMarketMsg(null);
         try {
-            await cancelListing(rc, walletKeys, listing.listing);
+            await cancelListing(rc, marketSigner!, listing.listing);
             setMarketMsg('Listing cancelled.');
             await loadListing();
         } catch (e) { setMarketMsg(e instanceof Error ? e.message : 'Cancel failed'); }
@@ -965,7 +969,7 @@ export default function TrackDetail() {
 
                     {!canSignContracts && (isOwner || (listing && listing.active)) && (
                         <p className="text-xs text-muted" style={{ marginTop: 8 }}>
-                            Marketplace actions need a local wallet for now.
+                            Connect a wallet to buy or sell.
                         </p>
                     )}
                     {marketMsg && (
