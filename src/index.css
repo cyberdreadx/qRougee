@@ -221,7 +221,13 @@ h4 {
 
 .sidebar-nav {
   padding: 16px 12px;
-  flex: 1;
+  flex: 1 1 auto;
+  /* Let the nav list scroll when it's taller than the viewport, so the wallet
+     and controls below stay pinned and reachable (min-height:0 is required for
+     a flex child to shrink below its content height). */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-section-title {
@@ -271,6 +277,7 @@ h4 {
 .sidebar-wallet {
   padding: 16px;
   border-top: 1px solid var(--border);
+  flex-shrink: 0; /* keep the connect-wallet button pinned, never squeezed */
 }
 
 .wallet-btn {
@@ -308,6 +315,7 @@ h4 {
   cursor: pointer;
   background: none;
   border: none;
+  flex-shrink: 0;
   width: calc(100% - 24px);
 }
 
