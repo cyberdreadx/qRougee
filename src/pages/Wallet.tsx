@@ -153,6 +153,7 @@ export default function WalletPage() {
                     const raw = tok as unknown as Record<string, unknown>;
                     const sym = (raw.symbol || raw.token_symbol) as string;
                     if (!sym) continue;
+                    if (sym.toUpperCase() === 'XRGE') continue; // native — shown separately above
                     try {
                         const bal = await rc.getTokenBalance(publicKey, sym);
                         if (bal && bal > 0) balances.push({
