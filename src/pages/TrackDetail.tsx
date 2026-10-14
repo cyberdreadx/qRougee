@@ -94,30 +94,39 @@ export default function TrackDetail() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { loadSocial(); }, [loadSocial]);
 
-    // Look up the fan-mintable collectible collection for this track. It shares the
-    // master collection's id with the trailing `NFT` swapped for `COL`. We hit the
-    // collection endpoint directly (not via the SDK) so this doesn't depend on the
-    // bundled SDK build exposing getCollection, and we log failures instead of
-    // swallowing them — a silent catch here was indistinguishable from "no collectible".
+    // Look up the fan-mintable collectible collection for this track. The master's
+    // symbol ends in `NFT` and the collectible's in `COL`, BUT the node truncates
+    // the symbol inside a collection_id (e.g. `3EYEANFT` → `...:3EYEANF`), so we
+    // can't derive the collectible id by string-swapping the id. Instead we read
+    // the master's full symbol, swap NFT→COL on that, and find the collection with
+    // that symbol under the same creator (same `col:<hash>:` id prefix).
     useEffect(() => {
         if (!track?.collectionId) return;
-        const colId = track.collectionId.replace(/NFT$/, 'COL');
-        if (colId === track.collectionId) return; // id doesn't end in NFT → no collectible
+        const collectionId = track.collectionId;
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch(`${getApiBase()}/nft/collection/${colId}`);
-                if (!res.ok) {
-                    if (res.status !== 404) console.warn('Collectible lookup failed', res.status, colId);
-                    return;
-                }
-                const col = await res.json();
+                const masterRes = await fetch(`${getApiBase()}/nft/collection/${collectionId}`);
+                if (!masterRes.ok) return;
+                const master = await masterRes.json();
+                const masterSym = String(master?.symbol || '');
+                if (!/NFT$/.test(masterSym)) return; // not a track master collection
+                const wantSym = masterSym.replace(/NFT$/, 'COL');
+                const prefix = collectionId.slice(0, collectionId.lastIndexOf(':') + 1);
+
+                const listRes = await fetch(`${getApiBase()}/nft/collections`);
+                if (!listRes.ok) return;
+                const data = await listRes.json();
+                const cols = data?.collections ?? (Array.isArray(data) ? data : []);
+                const col = cols.find((c: { symbol?: string; collection_id?: string }) =>
+                    c.symbol === wantSym && String(c.collection_id || '').startsWith(prefix),
+                );
                 // The node returns the mint count as `minted` (sometimes null) — normalize it.
                 if (!cancelled && col && col.public_mint) {
                     setCollectibleCol({ ...col, minted: Number(col.minted ?? col.total_minted ?? 0) });
                 }
             } catch (e) {
-                console.warn('Collectible lookup error', colId, e);
+                console.warn('Collectible lookup error', track?.collectionId, e);
             }
         })();
         return () => { cancelled = true; };
