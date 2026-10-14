@@ -13,6 +13,7 @@ import { pubkeyToAddress } from '@rougechain/sdk';
 import { getApiBase } from '../config/network';
 import { getMarketplaceAddress } from '../config/marketplace';
 import { findListingForNft, listNft, buyListing, cancelListing, formatPriceXrge, type Listing } from '../utils/marketplace';
+import { getMarketplaceSales, salesForCollections, saleStats, enrichSale, type Sale } from '../utils/marketplaceActivity';
 import type { TrackStats, SocialComment } from '@rougechain/sdk';
 
 export default function TrackDetail() {
@@ -77,6 +78,24 @@ export default function TrackDetail() {
     const [sellerAddr, setSellerAddr] = useState('');
     const [marketBusy, setMarketBusy] = useState(false);
     const [marketMsg, setMarketMsg] = useState<string | null>(null);
+
+    // Sales history for this track's NFTs (master + collectible), from contract events.
+    const [sales, setSales] = useState<Sale[]>([]);
+
+    useEffect(() => {
+        if (!marketAddr || !track?.collectionId) { setSales([]); return; }
+        let cancelled = false;
+        (async () => {
+            try {
+                const all = await getMarketplaceSales(rc);
+                const mine = salesForCollections(all, [track.collectionId, collectibleCol?.collection_id]);
+                // Resolve buyer + timestamp for the ones we'll show.
+                const enriched = await Promise.all(mine.slice(0, 25).map(enrichSale));
+                if (!cancelled) setSales(enriched);
+            } catch { /* leave empty */ }
+        })();
+        return () => { cancelled = true; };
+    }, [marketAddr, track?.collectionId, collectibleCol?.collection_id, rc]);
 
     const loadSocial = useCallback(async () => {
         if (!id) return;
@@ -991,6 +1010,53 @@ export default function TrackDetail() {
                     )}
                 </div>
             )}
+
+            {/* Sales history (from marketplace contract events) */}
+            {marketAddr && sales.length > 0 && (() => {
+                const stats = saleStats(sales);
+                const short = (k?: string) => (k ? `${k.slice(0, 6)}…${k.slice(-4)}` : '');
+                return (
+                    <div className="section anime-stagger-item">
+                        <h3 style={{ marginBottom: 12 }}>Sales History</h3>
+                        <div className="chain-info" style={{ marginBottom: 12 }}>
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Sales</span>
+                                <span className="chain-info-value">{stats.count}</span>
+                            </div>
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Volume</span>
+                                <span className="chain-info-value">{formatPriceXrge(stats.volumeQuanta)} XRGE</span>
+                            </div>
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Last sale</span>
+                                <span className="chain-info-value">
+                                    {stats.lastPriceQuanta != null ? `${formatPriceXrge(stats.lastPriceQuanta)} XRGE` : '—'}
+                                </span>
+                            </div>
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Royalties paid</span>
+                                <span className="chain-info-value">{formatPriceXrge(stats.royaltiesQuanta)} XRGE</span>
+                            </div>
+                        </div>
+                        <div className="chain-info">
+                            {sales.map((s) => (
+                                <div key={s.txHash} className="chain-info-row" style={{ alignItems: 'flex-start' }}>
+                                    <span className="chain-info-label">
+                                        {s.at ? new Date(s.at).toLocaleDateString() : `block ${s.blockHeight}`}
+                                    </span>
+                                    <span className="chain-info-value" style={{ textAlign: 'right' }}>
+                                        <strong>{formatPriceXrge(s.priceQuanta)} XRGE</strong>
+                                        <div className="text-xs text-muted">
+                                            {s.buyer ? `buyer ${short(s.buyer)}` : ''}
+                                            {s.seller ? ` · seller ${short(s.seller)}` : ''}
+                                        </div>
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Comments */}
             <div className="section anime-stagger-item">
