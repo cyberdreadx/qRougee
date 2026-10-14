@@ -1038,6 +1038,22 @@ export default function TrackDetail() {
                                 <span className="chain-info-value">{formatPriceXrge(stats.royaltiesQuanta)} XRGE</span>
                             </div>
                         </div>
+                        {sales.length >= 2 && (() => {
+                            const pts = [...sales].reverse().map((s) => s.priceQuanta); // oldest → newest
+                            const max = Math.max(...pts), min = Math.min(...pts), range = max - min || 1;
+                            const W = 280, H = 56, pad = 4;
+                            const step = (W - pad * 2) / (pts.length - 1);
+                            const coords = pts.map((p, i) => [pad + i * step, pad + (H - pad * 2) * (1 - (p - min) / range)] as const);
+                            return (
+                                <div style={{ marginBottom: 12 }}>
+                                    <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ maxWidth: W, display: 'block' }}>
+                                        <polyline points={coords.map(([x, y]) => `${x},${y}`).join(' ')} fill="none" stroke="#8b5cf6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                                        {coords.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="2.5" fill="#8b5cf6" />)}
+                                    </svg>
+                                    <div className="text-xs text-muted">Price history · {pts.length} sales</div>
+                                </div>
+                            );
+                        })()}
                         <div className="chain-info">
                             {sales.map((s) => (
                                 <div key={s.txHash} className="chain-info-row" style={{ alignItems: 'flex-start' }}>
