@@ -17,6 +17,7 @@ import TrackDetail from './pages/TrackDetail';
 import ArtistProfile from './pages/ArtistProfile';
 import TradePage from './pages/Trade';
 import Marketplace from './pages/Marketplace';
+import Collectibles from './pages/Collectibles';
 import RoyaltyDashboard from './pages/RoyaltyDashboard';
 import WalletPage from './pages/Wallet';
 import Explorer from './pages/Explorer';
@@ -43,6 +44,7 @@ export default function App() {
                       <Route path="/artist/:id" element={<ArtistProfile />} />
                       <Route path="/trade" element={<TradePage />} />
                       <Route path="/marketplace" element={<Marketplace />} />
+                      <Route path="/collectibles" element={<Collectibles />} />
                       <Route path="/royalties" element={<RoyaltyDashboard />} />
                       <Route path="/wallet" element={<WalletPage />} />
                       <Route path="/explorer" element={<Explorer />} />
