@@ -14,6 +14,7 @@ import {
     formatPriceXrge,
     type Listing,
 } from '../utils/marketplace';
+import { getMarketplaceSales, saleStats, enrichSale, type Sale } from '../utils/marketplaceActivity';
 
 // Only scan this many recent listings for the browse grid.
 const MAX_SCAN = 200;
@@ -34,6 +35,21 @@ export default function Marketplace() {
     const [loading, setLoading] = useState(false);
     const [busyId, setBusyId] = useState<number | null>(null);
     const [msg, setMsg] = useState<string | null>(null);
+    const [sales, setSales] = useState<Sale[]>([]);
+
+    // Load completed-sale history (for market stats + a recent-sales feed).
+    useEffect(() => {
+        if (!market) { setSales([]); return; }
+        let cancelled = false;
+        (async () => {
+            try {
+                const all = await getMarketplaceSales(rc);
+                const enriched = await Promise.all(all.slice(0, 20).map(enrichSale));
+                if (!cancelled) setSales(enriched);
+            } catch { /* leave empty */ }
+        })();
+        return () => { cancelled = true; };
+    }, [market, rc]);
 
     const canWrite = Boolean(walletKeys);
     const signer = walletKeys
@@ -130,6 +146,28 @@ export default function Marketplace() {
                 on-chain call.
             </p>
 
+            {(() => {
+                const stats = saleStats(sales);
+                const buyables = listings.filter(buyable);
+                const floor = buyables.length ? Math.min(...buyables.map((l) => Number(l.price))) : null;
+                const cards: [string, string][] = [
+                    ['Floor', floor != null ? `${formatPriceXrge(floor)} XRGE` : '—'],
+                    ['Volume', `${formatPriceXrge(stats.volumeQuanta)} XRGE`],
+                    ['Sales', String(stats.count)],
+                    ['Listed', String(buyables.length)],
+                ];
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 16 }}>
+                        {cards.map(([label, value]) => (
+                            <div key={label} className="card" style={{ padding: 12 }}>
+                                <div className="text-xs text-muted">{label}</div>
+                                <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{value}</div>
+                            </div>
+                        ))}
+                    </div>
+                );
+            })()}
+
             {!canWrite && (
                 <div className="badge" style={{ marginBottom: 16 }}>Connect a wallet to buy or list.</div>
             )}
@@ -199,6 +237,36 @@ export default function Marketplace() {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {sales.length > 0 && (
+                <div style={{ marginTop: 28 }}>
+                    <h2 style={{ marginBottom: 12 }}>Recent sales</h2>
+                    <div className="chain-info">
+                        {sales.map((s) => {
+                            const track = tracks.find((t) => t.id === `${s.collection}_${Number(s.tokenId)}`);
+                            return (
+                                <div key={s.txHash} className="chain-info-row" style={{ alignItems: 'center' }}>
+                                    <span className="chain-info-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {track?.coverUrl && (
+                                            <img src={track.coverUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} />
+                                        )}
+                                        <span>
+                                            <div style={{ fontWeight: 600 }}>{track?.title ?? `NFT #${Number(s.tokenId)}`}</div>
+                                            <div className="text-xs text-muted">
+                                                {s.at ? new Date(s.at).toLocaleDateString() : `block ${s.blockHeight}`}
+                                            </div>
+                                        </span>
+                                    </span>
+                                    <span className="chain-info-value" style={{ textAlign: 'right' }}>
+                                        <strong>{formatPriceXrge(s.priceQuanta)} XRGE</strong>
+                                        <div className="text-xs text-muted">{s.buyer ? `buyer ${shortKey(s.buyer)}` : ''}</div>
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
         </div>
