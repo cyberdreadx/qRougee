@@ -358,12 +358,17 @@ export default function TrackDetail() {
                 ? await ext.socialToggleLike(walletKeys.publicKey, id)
                 : await rc.social.toggleLike(walletKeys, id);
             if (res.success) {
-                const r = res as { liked?: boolean; likes?: number };
-                setStats(prev => ({
-                    ...prev,
-                    liked: r.liked ?? !prev.liked,
-                    likes: r.likes ?? prev.likes,
-                }));
+                // Both the SDK (submitTx) and the extension bridge nest the node's
+                // response fields under `data`, so read liked/likes from there — the
+                // top-level `liked`/`likes` the types advertise are never populated.
+                const r = (res.data ?? res) as { liked?: boolean; likes?: number };
+                setStats(prev => {
+                    const liked = r.liked ?? !prev.liked;
+                    // If the node didn't echo a count, derive it from the toggle
+                    // direction so the number still moves without a refresh.
+                    const likes = r.likes ?? Math.max(0, prev.likes + (liked ? 1 : -1));
+                    return { ...prev, liked, likes };
+                });
             }
         } catch { /* ignore */ }
         setLikeLoading(false);
@@ -376,9 +381,20 @@ export default function TrackDetail() {
             const res = isExtensionWallet
                 ? await ext.socialPostComment(walletKeys.publicKey, id, commentBody.trim())
                 : await rc.social.postComment(walletKeys, id, commentBody.trim());
-            const r = res as { comment?: SocialComment };
-            if (res.success && r.comment) {
-                setComments(prev => [...prev, r.comment!]);
+            // The posted comment is nested under `data` by both the SDK and the
+            // extension bridge; the top-level `comment` the type advertises is
+            // never set. Fall back to a locally-built comment so it renders
+            // immediately even if the node doesn't echo the record back.
+            const r = (res.data ?? res) as { comment?: SocialComment };
+            if (res.success) {
+                const posted: SocialComment = r.comment ?? {
+                    id: `local-${Date.now()}`,
+                    track_id: id,
+                    wallet_pubkey: walletKeys.publicKey,
+                    body: commentBody.trim(),
+                    timestamp: new Date().toISOString(),
+                };
+                setComments(prev => [...prev, posted]);
                 setCommentBody('');
                 setStats(prev => ({ ...prev, commentCount: prev.commentCount + 1 }));
             }

@@ -89,6 +89,11 @@ export default function Collectibles() {
                 : await rc.nft.mint(walletKeys, mintOpts);
             if (res.success) {
                 setMsg(`Minted "${title}" — it's in your wallet.`);
+                // Bump the count locally right away — the chain can lag indexing,
+                // so refresh() alone may still return the pre-mint total.
+                setCols(prev => prev.map(x =>
+                    x.collection_id === c.collection_id ? { ...x, minted: x.minted + 1 } : x,
+                ));
                 await refresh();
             } else {
                 setMsg((res as { error?: string }).error || 'Mint failed');
