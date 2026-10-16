@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useEffect, useCallback, useRef, useState, type ReactNode } from 'react';
 import type { NftCollection, NftToken } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { MOCK_TRACKS, type Track, type RoyaltySplit, type RoyaltyPayee } from '../data/mockData';
@@ -82,7 +82,27 @@ function generateCover(tokenId: string | number): string {
     )}`;
 }
 
-export function useNftTracks() {
+interface NftTracksValue extends NftTracksState {
+    /** Re-fetch tracks. Forces a network round-trip by default (use after a
+     *  mutation like mint/hide). Pass `{ force: false }` for a stale-guarded
+     *  refresh that no-ops when the cache is still fresh. */
+    refetch: (opts?: { force?: boolean }) => Promise<void>;
+}
+
+const NftTracksContext = createContext<NftTracksValue | null>(null);
+
+// How long cached tracks are considered fresh. Within this window a non-forced
+// refetch (e.g. the on-focus revalidation) is skipped, so page navigation never
+// re-hits the network — the provider is mounted once at the app root.
+const STALE_MS = 30_000;
+
+/**
+ * App-wide provider for the on-chain track list. Fetches once on mount and
+ * shares the result across every page, so navigating between pages is instant
+ * instead of re-fetching N collections each time. Revalidates in the background
+ * when the window regains focus and the cache has gone stale.
+ */
+export function NftTracksProvider({ children }: { children: ReactNode }) {
     const rc = useRougeChain();
     const [state, setState] = useState<NftTracksState>({
         tracks: MOCK_TRACKS,
@@ -92,9 +112,14 @@ export function useNftTracks() {
         isLoading: true,
         error: null,
     });
+    const lastFetched = useRef(0);
+    const inFlight = useRef<Promise<void> | null>(null);
+    const hasData = useRef(false);
 
-    const fetchTracks = useCallback(async () => {
-        setState(prev => ({ ...prev, isLoading: true, error: null }));
+    const doFetch = useCallback(async () => {
+        // Show the loading state only on the first load; background
+        // revalidation keeps the current list visible while it refreshes.
+        setState(prev => ({ ...prev, isLoading: !hasData.current, error: null }));
 
         try {
             const collections = await rc.nft.getCollections();
@@ -142,6 +167,8 @@ export function useNftTracks() {
                 isLoading: false,
                 error: null,
             });
+            hasData.current = true;
+            lastFetched.current = Date.now();
         } catch {
             setState(prev => ({
                 ...prev,
@@ -151,17 +178,42 @@ export function useNftTracks() {
         }
     }, [rc]);
 
-    useEffect(() => {
-        // Fetch-on-mount: fetchTracks flips isLoading before awaiting the network,
-        // which is the intended loading UX — not an accidental render cascade.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        fetchTracks();
-    }, [fetchTracks]);
+    const refetch = useCallback(async (opts?: { force?: boolean }) => {
+        const force = opts?.force ?? true;
+        if (!force && Date.now() - lastFetched.current < STALE_MS) return;
+        // Coalesce concurrent callers (StrictMode double-mount, rapid retries)
+        // onto a single in-flight request.
+        if (inFlight.current) return inFlight.current;
+        const p = doFetch().finally(() => { inFlight.current = null; });
+        inFlight.current = p;
+        return p;
+    }, [doFetch]);
 
-    return {
-        ...state,
-        refetch: fetchTracks,
-    };
+    useEffect(() => {
+        refetch({ force: true });
+    }, [refetch]);
+
+    // Background-revalidate when the user returns to the tab, but only if the
+    // cache has gone stale — keeps data fresh without slowing navigation.
+    useEffect(() => {
+        const onFocus = () => { refetch({ force: false }); };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, [refetch]);
+
+    return (
+        <NftTracksContext.Provider value={{ ...state, refetch }}>
+            {children}
+        </NftTracksContext.Provider>
+    );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook + helper co-located with their provider
+export function useNftTracks(): NftTracksValue {
+    const ctx = useContext(NftTracksContext);
+    if (!ctx) throw new Error('useNftTracks must be used within NftTracksProvider');
+    return ctx;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure helper, used by callers that build Track objects
 export { nftTokenToTrack };
