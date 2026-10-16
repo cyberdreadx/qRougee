@@ -60,7 +60,6 @@ export default function TrackDetail() {
     const { allTracksUnfiltered: nftTracks, isLoading: tracksLoading, refetch: refetchTracks } = useNftTracks();
     const { walletKeys, isExtensionWallet } = useWallet();
     const rc = useRougeChain();
-    const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 60, duration: 500, deps: [id, nftTracks.length] });
 
     const allTracks = [...MOCK_TRACKS, ...nftTracks];
     const track = allTracks.find(t => t.id === id);
@@ -110,6 +109,15 @@ export default function TrackDetail() {
     // True once the collectible-collection lookup has finished, so we can show an
     // "not available" state without flashing it while the lookup is still running.
     const [collectibleChecked, setCollectibleChecked] = useState(false);
+
+    // Entrance animation. `collectibleChecked`/`collectibleCol` are in the deps so
+    // the stagger re-runs and fades in the Collectible section once it mounts —
+    // it loads after two async round-trips, long after the initial animation, and
+    // would otherwise stay stuck at the CSS initial opacity:0 (invisible).
+    const rootRef = useAnimeEntrance<HTMLDivElement>({
+        staggerMs: 60, duration: 500,
+        deps: [id, nftTracks.length, collectibleChecked, !!collectibleCol],
+    });
 
     // Marketplace (escrow list/buy/cancel) — inert until a market address is configured
     const marketAddr = getMarketplaceAddress();
