@@ -6,7 +6,7 @@ import { useNftTracks } from '../hooks/useNftTracks';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import * as ext from '../utils/extensionSigner';
-import { MOCK_TRACKS, formatDuration } from '../data/mockData';
+import { MOCK_TRACKS, formatDuration, type Track } from '../data/mockData';
 import { explorerUrl } from '../utils/explorer';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
 import { pubkeyToAddress } from '@rougechain/sdk';
@@ -15,6 +15,43 @@ import { getMarketplaceAddress } from '../config/marketplace';
 import { findListingForNft, listNft, buyListing, cancelListing, formatPriceXrge, type Listing } from '../utils/marketplace';
 import { getMarketplaceSales, salesForCollections, saleStats, enrichSale, type Sale } from '../utils/marketplaceActivity';
 import type { TrackStats, SocialComment } from '@rougechain/sdk';
+
+// Attribute keys that are app plumbing (media URLs, hashes, waveform data) or
+// are already surfaced in their own sections — keep them out of the Traits grid.
+const TRAIT_EXCLUDE = new Set([
+    'name', 'title', 'artist', 'description', 'collaborators',
+    'image', 'animation_url', 'audiourl', 'coverurl', 'waveform', 'audiohash',
+    'royaltysplit', 'royaltypayees', 'tokensymbol', 'tokensupply',
+    'playgatethreshold', 'premiumthreshold', 'previewstart', 'previewend',
+    'genre', 'duration',
+]);
+
+function humanizeTraitKey(key: string): string {
+    return key
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase())
+        .trim();
+}
+
+/**
+ * Build a curated, display-friendly trait list from a track's on-chain
+ * attributes: Genre and Duration first, then any extra scalar attributes the
+ * creator added (e.g. a custom BPM, key, or mood), skipping internal plumbing.
+ */
+function trackTraits(track: Track): { label: string; value: string }[] {
+    const traits: { label: string; value: string }[] = [];
+    if (track.genre && track.genre !== 'Unknown') traits.push({ label: 'Genre', value: track.genre });
+    if (track.duration > 0) traits.push({ label: 'Duration', value: formatDuration(track.duration) });
+    for (const [k, v] of Object.entries(track.attributes ?? {})) {
+        if (TRAIT_EXCLUDE.has(k.toLowerCase())) continue;
+        if (v == null || typeof v === 'object') continue; // skip arrays/objects (waveform, splits)
+        const value = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v).trim();
+        if (!value) continue;
+        traits.push({ label: humanizeTraitKey(k), value });
+    }
+    return traits;
+}
 
 export default function TrackDetail() {
     const { id } = useParams<{ id: string }>();
@@ -70,6 +107,9 @@ export default function TrackDetail() {
     } | null>(null);
     const [collectibleMinting, setCollectibleMinting] = useState(false);
     const [collectibleMintResult, setCollectibleMintResult] = useState<string | null>(null);
+    // True once the collectible-collection lookup has finished, so we can show an
+    // "not available" state without flashing it while the lookup is still running.
+    const [collectibleChecked, setCollectibleChecked] = useState(false);
 
     // Marketplace (escrow list/buy/cancel) — inert until a market address is configured
     const marketAddr = getMarketplaceAddress();
@@ -123,6 +163,8 @@ export default function TrackDetail() {
         if (!track?.collectionId) return;
         const collectionId = track.collectionId;
         let cancelled = false;
+        setCollectibleChecked(false);
+        setCollectibleCol(null);
         (async () => {
             try {
                 const masterRes = await fetch(`${getApiBase()}/nft/collection/${collectionId}`);
@@ -146,6 +188,8 @@ export default function TrackDetail() {
                 }
             } catch (e) {
                 console.warn('Collectible lookup error', track?.collectionId, e);
+            } finally {
+                if (!cancelled) setCollectibleChecked(true);
             }
         })();
         return () => { cancelled = true; };
@@ -715,6 +759,28 @@ export default function TrackDetail() {
                 )}
             </div>
 
+            {/* Traits */}
+            {(() => {
+                const traits = trackTraits(track);
+                if (traits.length === 0) return null;
+                return (
+                    <div className="section anime-stagger-item" style={{ marginTop: 32 }}>
+                        <h3 style={{ marginBottom: 16 }}>
+                            <Tag size={16} style={{ verticalAlign: -2, marginRight: 6 }} />
+                            Traits
+                        </h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                            {traits.map(t => (
+                                <div key={t.label} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', background: 'var(--surface)' }}>
+                                    <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>{t.label}</div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', wordBreak: 'break-word' }}>{t.value}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* On-Chain Details */}
             <div className="section anime-stagger-item" style={{ marginTop: 32 }}>
                 <h3 style={{ marginBottom: 16 }}>
@@ -898,13 +964,23 @@ export default function TrackDetail() {
                 </div>
             )}
 
-            {/* Collectible Album Cover */}
-            {collectibleCol && (
+            {/* Collectible Album Cover — always shown for on-chain tracks once the
+                lookup has resolved; falls back to an explanatory empty state when
+                the creator never enabled a fan-mintable collectible edition. */}
+            {track.collectionId && (collectibleCol || collectibleChecked) && (
                 <div className="section anime-stagger-item" style={{ marginTop: 32 }}>
                     <h3 style={{ marginBottom: 16 }}>
                         <ImageIcon size={16} style={{ verticalAlign: -2, marginRight: 6 }} />
                         Collectible Album Cover
                     </h3>
+                    {!collectibleCol ? (
+                        <p className="text-sm text-muted">
+                            This track doesn't have a fan-mintable collectible edition
+                            {isCreator
+                                ? ' yet. Enable collectibles when minting a track to let fans mint the album cover.'
+                                : '. Only the creator can enable one.'}
+                        </p>
+                    ) : (<>
                     <div className="chain-info" style={{ marginBottom: 16 }}>
                         <div className="chain-info-row">
                             <span className="chain-info-label">Minted</span>
@@ -951,6 +1027,7 @@ export default function TrackDetail() {
                             {collectibleMintResult}
                         </p>
                     )}
+                    </>)}
                 </div>
             )}
 

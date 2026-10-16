@@ -38,6 +38,8 @@ export interface Track {
   premiumThreshold?: number;
   /** SHA-256 content fingerprint of the audio, for duplicate-mint detection. */
   audioHash?: string;
+  /** Raw on-chain NFT attributes blob, used to render the Traits section. */
+  attributes?: Record<string, unknown>;
 }
 
 export interface Artist {

@@ -65,6 +65,7 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         playGateThreshold: Number(attrs.playGateThreshold) || undefined,
         premiumThreshold: Number(attrs.premiumThreshold) || undefined,
         audioHash: attrs.audioHash || undefined,
+        attributes: (token.attributes || undefined) as Record<string, unknown> | undefined,
     };
 }
 
