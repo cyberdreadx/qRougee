@@ -98,26 +98,35 @@ export function useNftTracks() {
 
         try {
             const collections = await rc.nft.getCollections();
-            const allTracks: Track[] = [];
 
-            for (const col of collections) {
-                try {
-                    const { tokens } = await rc.nft.getTokens(col.collection_id, { limit: 50 });
-                    for (const token of tokens) {
-                        allTracks.push(nftTokenToTrack(token, col));
+            // Fetch every collection's tokens in parallel — doing this
+            // sequentially made the whole app wait on N round-trips in series.
+            // Per-collection errors resolve to [] so one bad collection can't
+            // abort the batch; Promise.all preserves collection order.
+            const perCollection = await Promise.all(
+                collections.map(async (col): Promise<Track[]> => {
+                    try {
+                        const { tokens } = await rc.nft.getTokens(col.collection_id, { limit: 50 });
+                        return tokens.map(token => nftTokenToTrack(token, col));
+                    } catch {
+                        return [];
                     }
-                } catch { /* skip */ }
-            }
+                }),
+            );
+            const allTracks: Track[] = perCollection.flat();
 
-            // Fetch hidden track IDs from each unique creator
+            // Fetch hidden track IDs from each unique creator, also in parallel.
             const creators = [...new Set(allTracks.map(t => t.creator).filter(Boolean))] as string[];
-            const hiddenIds = new Set<string>();
-            for (const creator of creators) {
-                try {
-                    const ids = await rc.social.getHiddenTracks(creator);
-                    ids.forEach(id => hiddenIds.add(id));
-                } catch { /* ignore */ }
-            }
+            const hiddenLists = await Promise.all(
+                creators.map(async (creator): Promise<string[]> => {
+                    try {
+                        return await rc.social.getHiddenTracks(creator);
+                    } catch {
+                        return [];
+                    }
+                }),
+            );
+            const hiddenIds = new Set<string>(hiddenLists.flat());
 
             const visibleTracks = allTracks.filter(t => !hiddenIds.has(t.id));
 
