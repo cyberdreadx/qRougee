@@ -9,6 +9,7 @@ import * as ext from '../utils/extensionSigner';
 import { MOCK_TRACKS, formatDuration, type Track } from '../data/mockData';
 import { explorerUrl } from '../utils/explorer';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
+import AddToPlaylist from '../components/AddToPlaylist';
 import { pubkeyToAddress } from '@rougechain/sdk';
 import { getApiBase } from '../config/network';
 import { getMarketplaceAddress } from '../config/marketplace';
@@ -736,6 +737,7 @@ export default function TrackDetail() {
                             <Coins size={14} /> Tip Artist
                         </button>
                     )}
+                    <AddToPlaylist trackId={track.id} />
                 </div>
 
                 {/* Tip modal */}
