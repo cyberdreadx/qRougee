@@ -5,6 +5,7 @@ import type { Track } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { coverFallback } from '../utils/coverArt';
+import ArtistName from './ArtistName';
 import type { TrackStats } from '@rougechain/sdk';
 
 interface TrackCardProps {
@@ -66,7 +67,9 @@ export default function TrackCard({ track, queue }: TrackCardProps) {
                 )}
             </div>
             <div className="track-card-title">{track.title}</div>
-            <div className="track-card-artist">{track.artist}</div>
+            <div className="track-card-artist">
+                <ArtistName creator={track.creator} fallback={track.artist} />
+            </div>
         </div>
     );
 }
