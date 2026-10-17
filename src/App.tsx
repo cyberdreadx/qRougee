@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { RougeChainProvider } from './hooks/useRougeChain';
+import { NftTracksProvider } from './hooks/useNftTracks';
 import { PlayerProvider } from './hooks/usePlayer';
 import { WalletProvider } from './hooks/useWallet';
 import { SidebarProvider } from './hooks/useSidebar';
@@ -27,6 +28,7 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
       <RougeChainProvider>
+        <NftTracksProvider>
         <WalletProvider>
           <PlayerProvider>
             <SidebarProvider>
@@ -58,6 +60,7 @@ export default function App() {
             </SidebarProvider>
           </PlayerProvider>
         </WalletProvider>
+        </NftTracksProvider>
       </RougeChainProvider>
       </ThemeProvider>
     </BrowserRouter>
