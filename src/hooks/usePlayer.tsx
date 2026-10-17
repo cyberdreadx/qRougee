@@ -35,6 +35,8 @@ interface GatedTrackInfo {
     requiredBalance: number;
 }
 
+type RepeatMode = 'off' | 'all' | 'one';
+
 interface PlayerState {
     currentTrack: Track | null;
     queue: Track[];
@@ -42,6 +44,20 @@ interface PlayerState {
     progress: number;
     duration: number;
     volume: number;
+    shuffle: boolean;
+    repeat: RepeatMode;
+}
+
+/** Index of the next track to play given shuffle. Returns the same index for a
+ *  single-item queue. (Caller handles repeat/stop semantics.) */
+function nextIndex(len: number, idx: number, shuffle: boolean): number {
+    if (len <= 1) return idx;
+    if (shuffle) {
+        let j = idx;
+        while (j === idx) j = Math.floor(Math.random() * len);
+        return j;
+    }
+    return (idx + 1) % len;
 }
 
 interface PlayerContextType extends PlayerState {
@@ -53,6 +69,8 @@ interface PlayerContextType extends PlayerState {
     prev: () => void;
     seek: (pct: number) => void;
     setVolume: (vol: number) => void;
+    toggleShuffle: () => void;
+    cycleRepeat: () => void;
     // Play gating
     gatedTrack: GatedTrackInfo | null;
     dismissGate: () => void;
@@ -78,6 +96,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         progress: 0,
         duration: 0,
         volume: 0.75,
+        shuffle: false,
+        repeat: 'off',
     });
 
     const [gatedTrack, setGatedTrack] = useState<GatedTrackInfo | null>(null);
@@ -193,18 +213,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 if (prev.queue.length === 0 || !prev.currentTrack) {
                     return { ...prev, isPlaying: false, progress: 0 };
                 }
+                // Repeat-one: replay the current track.
+                if (prev.repeat === 'one') {
+                    loadAndPlay(prev.currentTrack, prev.volume);
+                    return { ...prev, progress: 0, isPlaying: !!prev.currentTrack.audioUrl };
+                }
                 const idx = prev.queue.findIndex(t => t.id === prev.currentTrack!.id);
-                const nextIdx = idx + 1;
-                if (nextIdx >= prev.queue.length) {
+                // Reached the end of a sequential queue with repeat off → stop.
+                if (!prev.shuffle && idx === prev.queue.length - 1 && prev.repeat === 'off') {
                     return { ...prev, isPlaying: false, progress: 0 };
                 }
-                const nextTrack = prev.queue[nextIdx];
+                const nextTrack = prev.queue[nextIndex(prev.queue.length, idx, prev.shuffle)];
                 // Note: auto-advance doesn't gate (they already committed to listening)
                 loadAndPlay(nextTrack, prev.volume);
                 return {
                     ...prev,
                     currentTrack: nextTrack,
-                    isPlaying: true,
+                    isPlaying: !!nextTrack.audioUrl,
                     progress: 0,
                     duration: nextTrack.duration,
                 };
@@ -274,7 +299,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setState(prev => {
             if (!prev.currentTrack || prev.queue.length === 0) return prev;
             const idx = prev.queue.findIndex(t => t.id === prev.currentTrack!.id);
-            const nextTrack = prev.queue[(idx + 1) % prev.queue.length];
+            // Manual skip always advances (wraps); shuffle picks a random other track.
+            const nextTrack = prev.queue[nextIndex(prev.queue.length, idx, prev.shuffle)];
             loadAndPlay(nextTrack, prev.volume);
             return {
                 ...prev,
@@ -321,6 +347,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setState(prev => ({ ...prev, volume: clamped }));
     }, []);
 
+    const toggleShuffle = useCallback(() => {
+        setState(prev => ({ ...prev, shuffle: !prev.shuffle }));
+    }, []);
+
+    const cycleRepeat = useCallback(() => {
+        setState(prev => ({
+            ...prev,
+            repeat: prev.repeat === 'off' ? 'all' : prev.repeat === 'all' ? 'one' : 'off',
+        }));
+    }, []);
+
     const dismissGate = useCallback(() => setGatedTrack(null), []);
 
     const setTokenBalanceChecker = useCallback(
@@ -351,6 +388,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 prev,
                 seek,
                 setVolume,
+                toggleShuffle,
+                cycleRepeat,
                 gatedTrack,
                 dismissGate,
                 setTokenBalanceChecker,
