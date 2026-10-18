@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Play, Shuffle } from 'lucide-react';
 import TrackCard from '../components/TrackCard';
+import TrackRow from '../components/TrackRow';
 import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
 import CoverBackdrop from '../components/CoverBackdrop';
+import { coverFallback } from '../utils/coverArt';
 import type { Track } from '../data/mockData';
 
 export default function Home() {
-    const { play } = usePlayer();
+    const { play, shuffle, toggleShuffle } = usePlayer();
     const navigate = useNavigate();
-    const { tracks, isLoading } = useNftTracks();
+    const { tracks, isLoading, error, refetch } = useNftTracks();
     const rc = useRougeChain();
     const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 55, duration: 450, deps: [tracks.length] });
 
@@ -39,8 +42,14 @@ export default function Home() {
         return () => { cancelled = true; };
     }, [tracks, rc]);
 
-    const trending = popularLoaded ? popular.slice(0, 8) : tracks.slice(0, 8);
-    const newReleases = tracks.slice(0, 6);
+    const trending = popularLoaded ? popular.slice(0, 10) : tracks.slice(0, 10);
+    const newReleases = tracks.slice(0, 10);
+
+    const shufflePlay = () => {
+        if (trending.length === 0) return;
+        if (!shuffle) toggleShuffle();
+        play(trending[Math.floor(Math.random() * trending.length)], trending);
+    };
 
     // Derive unique artists from on-chain track data
     const artistMap = new Map<string, { name: string; coverUrl: string; trackCount: number }>();
@@ -60,75 +69,49 @@ export default function Home() {
 
     return (
         <div className="page-container" ref={rootRef}>
-            {/* Hero */}
-            <div className="hero anime-stagger-item" style={{ position: 'relative', isolation: 'isolate' }}>
-                <CoverBackdrop image={trending[0]?.coverUrl} opacity={0.4} fade="bottom" />
+            {/* Compact featured header */}
+            <div className="home-feature anime-stagger-item" style={{ position: 'relative', isolation: 'isolate' }}>
+                <CoverBackdrop image={trending[0]?.coverUrl} opacity={0.5} fade="bottom" />
                 <div style={{ position: 'relative', zIndex: 1 }}>
-                <h1>Decentralized Music, Owned by Artists</h1>
-                <p>
-                    Stream tracks minted as NFTs on RougeChain. Every play is transparent.
-                    Every artist keeps their keys.
-                </p>
-                <div className="hero-actions">
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => { if (trending.length > 0) play(trending[0], trending); }}
-                    >
-                        Start Listening
-                    </button>
-                    <Link to="/upload" className="btn btn-secondary">
-                        Mint a Track
-                    </Link>
-                </div>
+                    <div className="home-feature-kicker">On-chain music · RougeChain</div>
+                    <h1 className="home-feature-title">Stream</h1>
+                    <div className="home-feature-actions">
+                        <button className="btn btn-primary" onClick={() => { if (trending.length) play(trending[0], trending); }}>
+                            <Play size={15} /> Play all
+                        </button>
+                        <button className="btn btn-secondary" onClick={shufflePlay} disabled={trending.length === 0}>
+                            <Shuffle size={15} /> Shuffle
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Stats */}
-            <div className="stats-row anime-stagger-item">
-                <div className="stat">
-                    <div className="stat-value">{isLoading ? '...' : tracks.length}</div>
-                    <div className="stat-label">Tracks</div>
-                </div>
-                <div className="stat">
-                    <div className="stat-value">{isLoading ? '...' : artists.length}</div>
-                    <div className="stat-label">Artists</div>
-                </div>
-                <div className="stat">
-                    <div className="stat-value">{isLoading ? '...' : new Set(tracks.map(t => t.collectionId).filter(Boolean)).size}</div>
-                    <div className="stat-label">Collections</div>
-                </div>
-                <div className="stat">
-                    <div className="stat-value">XRGE</div>
-                    <div className="stat-label">Powered By</div>
-                </div>
-            </div>
-
-            {/* Trending Tracks */}
+            {/* Trending — SoundCloud-style waveform rows */}
             {trending.length > 0 && (
                 <div className="section anime-stagger-item">
                     <div className="section-header">
-                        <h2>{popularLoaded ? 'Popular Tracks' : 'Trending Tracks'}</h2>
-                        <Link to="/search" className="section-link">
-                            See all →
-                        </Link>
+                        <h2>{popularLoaded ? 'Popular' : 'Trending'}</h2>
+                        <Link to="/search" className="section-link">See all →</Link>
                     </div>
-                    <div className="track-grid">
+                    <div className="track-rows">
                         {trending.map(track => (
-                            <TrackCard key={track.id} track={track} queue={trending} />
+                            <TrackRow key={track.id} track={track} queue={trending} />
                         ))}
                     </div>
                 </div>
             )}
 
-            {/* New Releases */}
+            {/* New Releases — artwork carousel */}
             {newReleases.length > 0 && (
                 <div className="section anime-stagger-item">
                     <div className="section-header">
                         <h2>New Releases</h2>
                     </div>
-                    <div className="track-grid">
+                    <div className="hscroll">
                         {newReleases.map(track => (
-                            <TrackCard key={track.id} track={track} queue={newReleases} />
+                            <div className="hscroll-item" key={track.id}>
+                                <TrackCard track={track} queue={newReleases} />
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -148,7 +131,7 @@ export default function Home() {
                                 onClick={() => navigate(`/artist/${encodeURIComponent(artist.name)}`)}
                             >
                                 <div className="artist-avatar">
-                                    <img src={artist.coverUrl} alt={artist.name}
+                                    <img src={artist.coverUrl || coverFallback(artist.name, artist.name)} alt={artist.name}
                                         style={{ objectFit: 'cover' }} />
                                 </div>
                                 <div className="artist-name">{artist.name}</div>
@@ -168,8 +151,19 @@ export default function Home() {
 
             {!isLoading && tracks.length === 0 && (
                 <div className="empty-state" style={{ paddingTop: 40 }}>
-                    <p className="text-muted" style={{ marginBottom: 16 }}>No tracks on chain yet. Be the first!</p>
-                    <Link to="/upload" className="btn btn-primary">Mint a Track</Link>
+                    {error ? (
+                        <>
+                            <p className="text-muted" style={{ marginBottom: 16 }}>
+                                Couldn’t reach RougeChain. The node may be down or switching networks.
+                            </p>
+                            <button className="btn btn-primary" onClick={() => refetch({ force: true })}>Retry</button>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-muted" style={{ marginBottom: 16 }}>No tracks on chain yet. Be the first!</p>
+                            <Link to="/upload" className="btn btn-primary">Mint a Track</Link>
+                        </>
+                    )}
                 </div>
             )}
         </div>
