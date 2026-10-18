@@ -10,6 +10,7 @@ import { useRougeChain } from '../hooks/useRougeChain';
 import { exportKeystore, importKeystore } from '../hooks/useKeystore';
 import { getNetworkId } from '../config/network';
 import * as ext from '../utils/extensionSigner';
+import ArtistProfileCard from '../components/ArtistProfileCard';
 
 /* ────────────────────────────────────────────────────────── */
 
@@ -483,6 +484,9 @@ export default function WalletPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Artist display name */}
+            <ArtistProfileCard />
 
             {/* Tabs */}
             <div style={{
