@@ -41,41 +41,8 @@ export default function PlayerBar() {
         play,
     } = usePlayer();
 
-    if (!currentTrack) {
-        return (
-            <div className="player-bar" style={{ opacity: 0.5 }}>
-                <div className="player-track-info">
-                    <div className="player-thumb" />
-                    <div className="player-track-text">
-                        <div className="player-track-title" style={{ color: 'var(--muted)' }}>
-                            No track selected
-                        </div>
-                        <div className="player-track-artist">—</div>
-                    </div>
-                </div>
-                <div className="player-controls">
-                    <div className="player-buttons">
-                        <button className="player-btn" disabled><SkipBack /></button>
-                        <button className="player-btn-play" disabled style={{ opacity: 0.4 }}><Play /></button>
-                        <button className="player-btn" disabled><SkipForward /></button>
-                    </div>
-                    <div className="player-progress">
-                        <span className="player-time">0:00</span>
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{ width: '0%' }} />
-                        </div>
-                        <span className="player-time">0:00</span>
-                    </div>
-                </div>
-                <div className="player-volume">
-                    <Volume2 />
-                    <div className="volume-bar">
-                        <div className="volume-fill" style={{ width: '75%' }} />
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    // Nothing playing → no bar (SoundCloud-style: the player appears on play).
+    if (!currentTrack) return null;
 
     const progressPct = duration > 0 ? (progress / duration) * 100 : 0;
     // The brand is monochrome (--accent is black/white), so colour can't signal

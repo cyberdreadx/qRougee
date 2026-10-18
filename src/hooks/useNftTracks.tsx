@@ -17,6 +17,9 @@ interface TrackAttrs {
     coverUrl?: string;
     audioUrl?: string;
     genre?: string;
+    waveform?: number[];
+    previewStart?: number | string;
+    previewEnd?: number | string;
     tokenSymbol?: string;
     tokenSupply?: string | number;
     royaltySplit?: RoyaltySplit;
@@ -67,6 +70,9 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         premiumThreshold: Number(attrs.premiumThreshold) || undefined,
         audioHash: attrs.audioHash || undefined,
         attributes: (token.attributes || undefined) as Record<string, unknown> | undefined,
+        waveform: Array.isArray(attrs.waveform) ? attrs.waveform.map(Number) : undefined,
+        previewStart: attrs.previewStart != null ? Number(attrs.previewStart) : undefined,
+        previewEnd: attrs.previewEnd != null ? Number(attrs.previewEnd) : undefined,
     };
 }
 
@@ -122,7 +128,12 @@ export function NftTracksProvider({ children }: { children: ReactNode }) {
         setState(prev => ({ ...prev, isLoading: !hasData.current, error: null }));
 
         try {
-            const collections = await rc.nft.getCollections();
+            // Guard against a hung request: if the node is unreachable the SDK
+            // fetch can wait indefinitely, leaving the app stuck on "Loading".
+            // Time out so it falls through to the error/empty state instead.
+            const timeout = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('timeout')), 15_000));
+            const collections = await Promise.race([rc.nft.getCollections(), timeout]);
 
             // Fetch every collection's tokens in parallel — doing this
             // sequentially made the whole app wait on N round-trips in series.

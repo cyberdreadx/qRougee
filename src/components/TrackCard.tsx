@@ -34,7 +34,7 @@ export default function TrackCard({ track, queue }: TrackCardProps) {
         <div className="track-card" onClick={() => navigate(`/track/${track.id}`)}>
             <div className="track-card-art">
                 <img
-                    src={track.coverUrl}
+                    src={track.coverUrl || coverFallback(track.title, track.id)}
                     alt={track.title}
                     loading="lazy"
                     onError={e => {

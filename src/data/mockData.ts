@@ -40,6 +40,11 @@ export interface Track {
   audioHash?: string;
   /** Raw on-chain NFT attributes blob, used to render the Traits section. */
   attributes?: Record<string, unknown>;
+  /** Normalized 0–1 waveform peaks captured at mint (SoundCloud-style display). */
+  waveform?: number[];
+  /** Auto-picked preview window (seconds). */
+  previewStart?: number;
+  previewEnd?: number;
 }
 
 export interface Artist {

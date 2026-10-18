@@ -36,9 +36,11 @@ export function coverFallback(title: string, seed?: string | number): string {
         `<stop offset="1" stop-color="hsl(${hue2},58%,20%)"/>` +
         `</linearGradient></defs>` +
         `<rect width="400" height="400" fill="url(#g)"/>` +
-        `<text x="200" y="205" text-anchor="middle" dominant-baseline="central" ` +
-        `fill="rgba(255,255,255,0.92)" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" ` +
-        `font-size="160" font-weight="700" letter-spacing="2">${initials}</text>` +
+        // soft highlight for depth
+        `<circle cx="130" cy="110" r="220" fill="rgba(255,255,255,0.08)"/>` +
+        `<text x="200" y="208" text-anchor="middle" dominant-baseline="central" ` +
+        `fill="rgba(255,255,255,0.88)" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" ` +
+        `font-size="104" font-weight="600" letter-spacing="3">${initials}</text>` +
         `</svg>`;
     return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
