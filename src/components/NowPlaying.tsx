@@ -1,6 +1,6 @@
 import {
     Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1,
-    ChevronDown, Volume2, VolumeX,
+    ChevronDown, Volume2, VolumeX, Radio,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../hooks/usePlayer';
@@ -12,8 +12,8 @@ import ArtistName from './ArtistName';
 export default function NowPlaying({ open, onClose }: { open: boolean; onClose: () => void }) {
     const navigate = useNavigate();
     const {
-        currentTrack, queue, isPlaying, progress, duration, volume, shuffle, repeat,
-        togglePlay, next, prev, seek, setVolume, toggleShuffle, cycleRepeat, play,
+        currentTrack, queue, isPlaying, progress, duration, volume, shuffle, repeat, autoplay,
+        togglePlay, next, prev, seek, setVolume, toggleShuffle, cycleRepeat, toggleAutoplay, play,
     } = usePlayer();
 
     if (!open || !currentTrack) return null;
@@ -92,6 +92,18 @@ export default function NowPlaying({ open, onClose }: { open: boolean; onClose: 
                         <div className="volume-bar" onClick={bar(setVolume)} style={{ maxWidth: 160 }}>
                             <div className="volume-fill" style={{ width: `${volume * 100}%` }} />
                         </div>
+                    </div>
+
+                    {/* Autoplay / radio */}
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={toggleAutoplay}
+                            title="Keep playing related tracks when the queue ends"
+                            style={{ padding: '6px 14px', fontSize: '0.8rem', ...(autoplay ? { background: 'var(--fg)', color: 'var(--accent-fg)' } : {}) }}
+                        >
+                            <Radio size={14} /> Autoplay {autoplay ? 'On' : 'Off'}
+                        </button>
                     </div>
                 </div>
 

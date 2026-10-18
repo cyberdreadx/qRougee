@@ -46,7 +46,11 @@ interface PlayerState {
     volume: number;
     shuffle: boolean;
     repeat: RepeatMode;
+    autoplay: boolean;
 }
+
+/** Supplies "radio" tracks to keep playback going when the queue runs out. */
+type RadioProvider = (current: Track | null, excludeIds: Set<string>) => Track[];
 
 /** Index of the next track to play given shuffle. Returns the same index for a
  *  single-item queue. (Caller handles repeat/stop semantics.) */
@@ -71,6 +75,8 @@ interface PlayerContextType extends PlayerState {
     setVolume: (vol: number) => void;
     toggleShuffle: () => void;
     cycleRepeat: () => void;
+    toggleAutoplay: () => void;
+    setRadioProvider: (fn: RadioProvider) => void;
     // Play gating
     gatedTrack: GatedTrackInfo | null;
     dismissGate: () => void;
@@ -88,6 +94,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const walletKeyRef = useRef<string | null>(null);
     const playRecorderRef = useRef<((trackId: string) => void) | null>(null);
     const recordedPlaysRef = useRef<Set<string>>(new Set());
+    const radioProviderRef = useRef<RadioProvider | null>(null);
 
     const [state, setState] = useState<PlayerState>({
         currentTrack: null,
@@ -98,6 +105,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         volume: 0.75,
         shuffle: false,
         repeat: 'off',
+        autoplay: true,
     });
 
     const [gatedTrack, setGatedTrack] = useState<GatedTrackInfo | null>(null);
@@ -219,8 +227,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                     return { ...prev, progress: 0, isPlaying: !!prev.currentTrack.audioUrl };
                 }
                 const idx = prev.queue.findIndex(t => t.id === prev.currentTrack!.id);
-                // Reached the end of a sequential queue with repeat off → stop.
+                // Reached the end of a sequential queue with repeat off.
                 if (!prev.shuffle && idx === prev.queue.length - 1 && prev.repeat === 'off') {
+                    // Autoplay/radio: keep going with related tracks instead of stopping.
+                    if (prev.autoplay && radioProviderRef.current) {
+                        const existing = new Set(prev.queue.map(t => t.id));
+                        const more = radioProviderRef.current(prev.currentTrack, existing)
+                            .filter(t => !existing.has(t.id));
+                        if (more.length > 0) {
+                            const nextTrack = more[0];
+                            loadAndPlay(nextTrack, prev.volume);
+                            return {
+                                ...prev,
+                                queue: [...prev.queue, ...more],
+                                currentTrack: nextTrack,
+                                isPlaying: !!nextTrack.audioUrl,
+                                progress: 0,
+                                duration: nextTrack.duration,
+                            };
+                        }
+                    }
                     return { ...prev, isPlaying: false, progress: 0 };
                 }
                 const nextTrack = prev.queue[nextIndex(prev.queue.length, idx, prev.shuffle)];
@@ -358,6 +384,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }));
     }, []);
 
+    const toggleAutoplay = useCallback(() => {
+        setState(prev => ({ ...prev, autoplay: !prev.autoplay }));
+    }, []);
+
+    const setRadioProvider = useCallback((fn: RadioProvider) => {
+        radioProviderRef.current = fn;
+    }, []);
+
     const dismissGate = useCallback(() => setGatedTrack(null), []);
 
     const setTokenBalanceChecker = useCallback(
@@ -390,6 +424,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 setVolume,
                 toggleShuffle,
                 cycleRepeat,
+                toggleAutoplay,
+                setRadioProvider,
                 gatedTrack,
                 dismissGate,
                 setTokenBalanceChecker,
