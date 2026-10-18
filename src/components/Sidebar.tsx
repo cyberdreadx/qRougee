@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Search, Library, Upload, Wallet, X, ArrowLeftRight, TrendingUp, Sun, Moon, Compass, Store, Gem, ListMusic } from 'lucide-react';
+import { Home, Search, Library, Upload, Wallet, X, ArrowLeftRight, TrendingUp, Sun, Moon, Compass, Store, Gem, ListMusic, ChevronDown } from 'lucide-react';
 import { useWallet, truncateKey } from '../hooks/useWallet';
 import { useSidebar } from '../hooks/useSidebar';
 import { useTheme } from '../hooks/useTheme';
@@ -74,82 +74,41 @@ export default function Sidebar() {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <div className="sidebar-section-title">Menu</div>
-                    <NavLink
-                        to="/"
-                        end
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <Home />
-                        Home
-                    </NavLink>
-                    <NavLink
-                        to="/search"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <Search />
-                        Search
-                    </NavLink>
-                    <NavLink
-                        to="/library"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <Library />
-                        Library
-                    </NavLink>
-                    <NavLink
-                        to="/playlists"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <ListMusic />
-                        Playlists
-                    </NavLink>
+                    <NavSection id="menu" title="Menu">
+                        <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <Home /> Home
+                        </NavLink>
+                        <NavLink to="/search" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <Search /> Search
+                        </NavLink>
+                        <NavLink to="/library" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <Library /> Library
+                        </NavLink>
+                        <NavLink to="/playlists" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <ListMusic /> Playlists
+                        </NavLink>
+                    </NavSection>
 
-                    <div className="sidebar-section-title" style={{ marginTop: 12 }}>
-                        Create
-                    </div>
-                    <NavLink
-                        to="/upload"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <Upload />
-                        Mint Track
-                    </NavLink>
-                    <NavLink
-                        to="/trade"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <ArrowLeftRight />
-                        Trade
-                    </NavLink>
-                    <NavLink
-                        to="/marketplace"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <Store />
-                        Marketplace
-                    </NavLink>
-                    <NavLink
-                        to="/collectibles"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <Gem />
-                        Collectibles
-                    </NavLink>
-                    <NavLink
-                        to="/royalties"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <TrendingUp />
-                        Royalties
-                    </NavLink>
-                    <NavLink
-                        to="/explorer"
-                        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-                    >
-                        <Compass />
-                        Explorer
-                    </NavLink>
+                    <NavSection id="create" title="Create">
+                        <NavLink to="/upload" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <Upload /> Mint Track
+                        </NavLink>
+                        <NavLink to="/trade" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <ArrowLeftRight /> Trade
+                        </NavLink>
+                        <NavLink to="/marketplace" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <Store /> Marketplace
+                        </NavLink>
+                        <NavLink to="/collectibles" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <Gem /> Collectibles
+                        </NavLink>
+                        <NavLink to="/royalties" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <TrendingUp /> Royalties
+                        </NavLink>
+                        <NavLink to="/explorer" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                            <Compass /> Explorer
+                        </NavLink>
+                    </NavSection>
                 </nav>
 
                 <NetworkSwitcher />
@@ -283,5 +242,35 @@ export default function Sidebar() {
                 </div>
             )}
         </>
+    );
+}
+
+/** Collapsible sidebar section with a persisted open/closed state. */
+function NavSection({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+    const storeKey = `qrougee:nav:${id}`;
+    const [open, setOpen] = useState<boolean>(() => {
+        try { return localStorage.getItem(storeKey) !== '0'; } catch { return true; }
+    });
+    const toggle = () => setOpen(o => {
+        const next = !o;
+        try { localStorage.setItem(storeKey, next ? '1' : '0'); } catch { /* ignore */ }
+        return next;
+    });
+    return (
+        <div className="sidebar-section">
+            <button
+                type="button"
+                className="sidebar-section-toggle"
+                onClick={toggle}
+                aria-expanded={open}
+            >
+                <span>{title}</span>
+                <ChevronDown
+                    size={14}
+                    style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }}
+                />
+            </button>
+            {open && <div className="sidebar-section-items">{children}</div>}
+        </div>
     );
 }

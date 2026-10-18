@@ -129,7 +129,7 @@ export default function PlayerBar() {
                 <div className="player-controls">
                     <div className="player-buttons">
                         <button
-                            className="player-btn"
+                            className="player-btn player-btn-secondary"
                             onClick={toggleShuffle}
                             title={shuffle ? 'Shuffle on' : 'Shuffle off'}
                             style={shuffle ? activeStyle : undefined}
@@ -146,7 +146,7 @@ export default function PlayerBar() {
                             <SkipForward />
                         </button>
                         <button
-                            className="player-btn"
+                            className="player-btn player-btn-secondary"
                             onClick={cycleRepeat}
                             title={repeat === 'one' ? 'Repeat one' : repeat === 'all' ? 'Repeat all' : 'Repeat off'}
                             style={repeat !== 'off' ? activeStyle : undefined}
@@ -163,7 +163,7 @@ export default function PlayerBar() {
                     </div>
                 </div>
 
-                <div className="player-volume">
+                <div className="player-actions">
                     <button
                         className="player-btn"
                         onClick={() => setExpanded(true)}
@@ -179,11 +179,13 @@ export default function PlayerBar() {
                     >
                         <ListMusic />
                     </button>
-                    <button className="player-btn" onClick={() => setVolume(volume === 0 ? 0.75 : 0)}>
-                        {volume === 0 ? <VolumeX /> : <Volume2 />}
-                    </button>
-                    <div className="volume-bar" onClick={handleVolumeClick}>
-                        <div className="volume-fill" style={{ width: `${volume * 100}%` }} />
+                    <div className="player-volume">
+                        <button className="player-btn" onClick={() => setVolume(volume === 0 ? 0.75 : 0)}>
+                            {volume === 0 ? <VolumeX /> : <Volume2 />}
+                        </button>
+                        <div className="volume-bar" onClick={handleVolumeClick}>
+                            <div className="volume-fill" style={{ width: `${volume * 100}%` }} />
+                        </div>
                     </div>
                 </div>
             </div>
