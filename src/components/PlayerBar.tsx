@@ -10,15 +10,18 @@ import {
     Repeat,
     Repeat1,
     ListMusic,
+    ChevronUp,
     X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../hooks/usePlayer';
 import { formatDuration, type Track } from '../data/mockData';
+import NowPlaying from './NowPlaying';
 
 export default function PlayerBar() {
     const navigate = useNavigate();
     const [showQueue, setShowQueue] = useState(false);
+    const [expanded, setExpanded] = useState(false);
     const {
         currentTrack,
         queue,
@@ -95,6 +98,7 @@ export default function PlayerBar() {
 
     return (
         <>
+            <NowPlaying open={expanded} onClose={() => setExpanded(false)} />
             {showQueue && (
                 <QueuePanel
                     queue={queue}
@@ -160,6 +164,13 @@ export default function PlayerBar() {
                 </div>
 
                 <div className="player-volume">
+                    <button
+                        className="player-btn"
+                        onClick={() => setExpanded(true)}
+                        title="Now playing"
+                    >
+                        <ChevronUp />
+                    </button>
                     <button
                         className="player-btn"
                         onClick={() => setShowQueue(v => !v)}
