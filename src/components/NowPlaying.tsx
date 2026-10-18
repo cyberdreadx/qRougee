@@ -7,6 +7,7 @@ import { usePlayer } from '../hooks/usePlayer';
 import { formatDuration, type Track } from '../data/mockData';
 import { coverFallback } from '../utils/coverArt';
 import ArtistName from './ArtistName';
+import CoverBackdrop from './CoverBackdrop';
 
 /** Full-screen "Now Playing": large artwork, full transport, and the queue. */
 export default function NowPlaying({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -34,16 +35,18 @@ export default function NowPlaying({ open, onClose }: { open: boolean; onClose: 
 
     return (
         <div style={{
-            position: 'fixed', inset: 0, zIndex: 200, background: 'var(--bg)',
+            position: 'fixed', inset: 0, zIndex: 200, background: 'var(--bg)', isolation: 'isolate',
             display: 'flex', flexDirection: 'column', overflowY: 'auto',
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px' }}>
+            <CoverBackdrop image={currentTrack.coverUrl} opacity={0.6} fade="full" />
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px' }}>
                 <button className="player-btn" onClick={onClose} title="Collapse"><ChevronDown /></button>
                 <span className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>Now Playing</span>
                 <span style={{ width: 32 }} />
             </div>
 
             <div style={{
+                position: 'relative', zIndex: 1,
                 flex: 1, display: 'flex', flexWrap: 'wrap', gap: 40, justifyContent: 'center',
                 alignItems: 'flex-start', padding: '12px 24px 40px', maxWidth: 1100, margin: '0 auto', width: '100%',
             }}>

@@ -11,6 +11,7 @@ import { explorerUrl } from '../utils/explorer';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
 import AddToPlaylist from '../components/AddToPlaylist';
 import ArtistName from '../components/ArtistName';
+import CoverBackdrop from '../components/CoverBackdrop';
 import { pubkeyToAddress } from '@rougechain/sdk';
 import { getApiBase } from '../config/network';
 import { getMarketplaceAddress } from '../config/marketplace';
@@ -524,11 +525,12 @@ export default function TrackDetail() {
                 <ArrowLeft size={16} /> Back
             </button>
 
-            <div className="track-detail-hero anime-stagger-item">
-                <div className="track-detail-cover">
+            <div className="track-detail-hero anime-stagger-item" style={{ position: 'relative', isolation: 'isolate' }}>
+                <CoverBackdrop image={track.coverUrl} opacity={0.4} fade="bottom" />
+                <div className="track-detail-cover" style={{ position: 'relative', zIndex: 1 }}>
                     <img src={track.coverUrl} alt={track.title} />
                 </div>
-                <div className="track-detail-info">
+                <div className="track-detail-info" style={{ position: 'relative', zIndex: 1 }}>
                     <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                         {track.tokenSymbol ? 'Tokenized Track' : 'Track'}
                     </div>

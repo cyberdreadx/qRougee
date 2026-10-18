@@ -1153,7 +1153,9 @@ textarea.form-input {
   background: var(--bg);
   outline: none;
   transition: border-color var(--transition);
-  margin-bottom: 32px;
+  /* No margin here — the .search-input-wrapper owns spacing. A margin on the
+     input inflates the wrapper so the absolutely-centered search icon (top:50%)
+     drops below the field. */
 }
 
 .search-page-input:focus {
@@ -2141,10 +2143,6 @@ textarea.form-input {
     margin-bottom: 24px;
   }
 
-  .search-page-input {
-    margin-bottom: 24px;
-  }
-
   /* Empty state */
   .empty-state {
     padding: 48px 20px;
@@ -2333,7 +2331,6 @@ textarea.form-input {
   .search-page-input {
     font-size: 0.875rem;
     padding: 12px 14px 12px 38px;
-    margin-bottom: 20px;
   }
 
   .search-input-wrapper {

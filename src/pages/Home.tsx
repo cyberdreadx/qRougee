@@ -5,6 +5,7 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useNftTracks } from '../hooks/useNftTracks';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { useAnimeEntrance } from '../hooks/useAnimeEntrance';
+import CoverBackdrop from '../components/CoverBackdrop';
 import type { Track } from '../data/mockData';
 
 export default function Home() {
@@ -60,7 +61,9 @@ export default function Home() {
     return (
         <div className="page-container" ref={rootRef}>
             {/* Hero */}
-            <div className="hero anime-stagger-item">
+            <div className="hero anime-stagger-item" style={{ position: 'relative', isolation: 'isolate' }}>
+                <CoverBackdrop image={trending[0]?.coverUrl} opacity={0.4} fade="bottom" />
+                <div style={{ position: 'relative', zIndex: 1 }}>
                 <h1>Decentralized Music, Owned by Artists</h1>
                 <p>
                     Stream tracks minted as NFTs on RougeChain. Every play is transparent.
@@ -76,6 +79,7 @@ export default function Home() {
                     <Link to="/upload" className="btn btn-secondary">
                         Mint a Track
                     </Link>
+                </div>
                 </div>
             </div>
 
