@@ -48,32 +48,24 @@ export default function SearchPage() {
 
             {/* Genre Filter */}
             <div className="section">
-                <div className="section-header">
-                    <h2>Browse Genres</h2>
-                    {selectedGenre && (
-                        <button className="section-link" onClick={() => setSelectedGenre(null)}>
-                            Clear filter ×
-                        </button>
-                    )}
-                </div>
-                <div className="genre-grid">
+                <label
+                    htmlFor="genre-select"
+                    style={{ display: 'block', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 8 }}
+                >
+                    Browse Genres
+                </label>
+                <select
+                    id="genre-select"
+                    className="form-input"
+                    value={selectedGenre ?? ''}
+                    onChange={e => setSelectedGenre(e.target.value || null)}
+                    style={{ maxWidth: 320, cursor: 'pointer' }}
+                >
+                    <option value="">All genres</option>
                     {GENRES.map(genre => (
-                        <div
-                            key={genre}
-                            className={`genre-card${selectedGenre === genre ? ' active' : ''}`}
-                            onClick={() =>
-                                setSelectedGenre(selectedGenre === genre ? null : genre)
-                            }
-                            style={
-                                selectedGenre === genre
-                                    ? { background: 'var(--fg)', color: 'var(--accent-fg)', borderColor: 'var(--fg)' }
-                                    : {}
-                            }
-                        >
-                            {genre}
-                        </div>
+                        <option key={genre} value={genre}>{genre}</option>
                     ))}
-                </div>
+                </select>
             </div>
 
             {/* Results */}

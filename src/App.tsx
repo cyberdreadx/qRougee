@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { RougeChainProvider } from './hooks/useRougeChain';
 import { NftTracksProvider } from './hooks/useNftTracks';
+import { PlaylistsProvider } from './hooks/usePlaylists';
 import { PlayerProvider } from './hooks/usePlayer';
 import { WalletProvider } from './hooks/useWallet';
 import { SidebarProvider } from './hooks/useSidebar';
@@ -19,6 +20,7 @@ import ArtistProfile from './pages/ArtistProfile';
 import TradePage from './pages/Trade';
 import Marketplace from './pages/Marketplace';
 import Collectibles from './pages/Collectibles';
+import PlaylistsPage, { PlaylistDetail } from './pages/Playlists';
 import RoyaltyDashboard from './pages/RoyaltyDashboard';
 import WalletPage from './pages/Wallet';
 import Explorer from './pages/Explorer';
@@ -30,6 +32,7 @@ export default function App() {
       <RougeChainProvider>
         <NftTracksProvider>
         <WalletProvider>
+          <PlaylistsProvider>
           <PlayerProvider>
             <SidebarProvider>
               <div className="app-layout">
@@ -41,6 +44,8 @@ export default function App() {
                       <Route path="/" element={<Home />} />
                       <Route path="/search" element={<SearchPage />} />
                       <Route path="/library" element={<LibraryPage />} />
+                      <Route path="/playlists" element={<PlaylistsPage />} />
+                      <Route path="/playlists/:id" element={<PlaylistDetail />} />
                       <Route path="/upload" element={<UploadPage />} />
                       <Route path="/track/:id" element={<TrackDetail />} />
                       <Route path="/artist/:id" element={<ArtistProfile />} />
@@ -59,6 +64,7 @@ export default function App() {
               </div>
             </SidebarProvider>
           </PlayerProvider>
+          </PlaylistsProvider>
         </WalletProvider>
         </NftTracksProvider>
       </RougeChainProvider>

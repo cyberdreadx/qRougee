@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import type { Track } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
 import { useRougeChain } from '../hooks/useRougeChain';
+import { coverFallback } from '../utils/coverArt';
+import ArtistName from './ArtistName';
 import type { TrackStats } from '@rougechain/sdk';
 
 interface TrackCardProps {
@@ -31,7 +33,16 @@ export default function TrackCard({ track, queue }: TrackCardProps) {
     return (
         <div className="track-card" onClick={() => navigate(`/track/${track.id}`)}>
             <div className="track-card-art">
-                <img src={track.coverUrl} alt={track.title} />
+                <img
+                    src={track.coverUrl}
+                    alt={track.title}
+                    loading="lazy"
+                    onError={e => {
+                        // Broken/empty IPFS cover → deterministic gradient+initials art.
+                        const fb = coverFallback(track.title, track.id);
+                        if (e.currentTarget.src !== fb) e.currentTarget.src = fb;
+                    }}
+                />
                 <button className="track-card-play" onClick={handlePlay}>
                     <Play />
                 </button>
@@ -56,7 +67,9 @@ export default function TrackCard({ track, queue }: TrackCardProps) {
                 )}
             </div>
             <div className="track-card-title">{track.title}</div>
-            <div className="track-card-artist">{track.artist}</div>
+            <div className="track-card-artist">
+                <ArtistName creator={track.creator} fallback={track.artist} />
+            </div>
         </div>
     );
 }

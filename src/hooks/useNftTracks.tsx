@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useCallback, useRef, useState, ty
 import type { NftCollection, NftToken } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { MOCK_TRACKS, type Track, type RoyaltySplit, type RoyaltyPayee } from '../data/mockData';
+import { coverFallback } from '../utils/coverArt';
 
 // Older mints stored IPFS URLs with an unencoded folder name (raw spaces / em-dash), which
 // won't load. Percent-encode http(s) URLs so both audio and cover resolve (encodeURI is
@@ -50,7 +51,7 @@ function nftTokenToTrack(token: NftToken, collection: NftCollection): Track {
         // player backfills the real length from the audio element on load, and
         // formatDuration renders 0 as "--:--" rather than a fabricated time.
         duration: parseInt(String(attrs.duration || '0'), 10) || 0,
-        coverUrl: encodeIpfs(attrs.coverUrl) || collection.image || generateCover(token.token_id),
+        coverUrl: encodeIpfs(attrs.coverUrl) || collection.image || coverFallback(token.name || '', token.collection_id + token.token_id),
         audioUrl: encodeIpfs(attrs.audioUrl) || '',
         genre: attrs.genre || 'Unknown',
         collectionId: token.collection_id,
@@ -74,12 +75,11 @@ function truncateCreator(key: string): string {
     return key.slice(0, 8) + '...' + key.slice(-6);
 }
 
-function generateCover(tokenId: string | number): string {
-    const id = typeof tokenId === 'string' ? parseInt(tokenId, 10) || 0 : tokenId;
-    const hue = (id * 37) % 360;
-    return `data:image/svg+xml,${encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="hsl(${hue},0%,${12 + (id % 20)}%)"/><text x="200" y="210" text-anchor="middle" fill="hsl(0,0%,${60 + (id % 30)}%)" font-family="sans-serif" font-size="48">${['♪', '♫', '♬', '♩'][id % 4]}</text></svg>`
-    )}`;
+/** True for album-cover collectible NFTs — these are not songs and shouldn't
+ *  appear in listener-facing track feeds (they stay in allTracksUnfiltered for
+ *  the Collectibles / Marketplace pages). */
+function isAlbumCoverCollectible(t: Track): boolean {
+    return (t.attributes as { type?: string } | undefined)?.type === 'album_cover_collectible';
 }
 
 interface NftTracksValue extends NftTracksState {
@@ -153,7 +153,16 @@ export function NftTracksProvider({ children }: { children: ReactNode }) {
             );
             const hiddenIds = new Set<string>(hiddenLists.flat());
 
-            const visibleTracks = allTracks.filter(t => !hiddenIds.has(t.id));
+            // Listener-facing feed: drop hidden tracks and album-cover
+            // collectibles (not songs), and de-dupe by id so the same token
+            // never shows twice. allTracksUnfiltered keeps everything for the
+            // NFT-centric pages (Collectibles / Marketplace).
+            const seen = new Set<string>();
+            const visibleTracks = allTracks.filter(t => {
+                if (hiddenIds.has(t.id) || isAlbumCoverCollectible(t) || seen.has(t.id)) return false;
+                seen.add(t.id);
+                return true;
+            });
 
             const merged = visibleTracks.length > 0
                 ? [...visibleTracks, ...MOCK_TRACKS]
