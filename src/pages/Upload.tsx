@@ -176,11 +176,13 @@ export default function UploadPage() {
 
     const loadDraft = useCallback((draft: Draft) => {
         setForm(draft.form);
-        setStep(draft.step);
+        // Audio can't be persisted in a draft, so if this draft had one, drop the
+        // user back to the first step to re-attach it (a track must have audio).
+        setStep(draft.audioFileName ? 0 : draft.step);
         setActiveDraftId(draft.id);
         setShowDrafts(false);
         setMintSuccess(false);
-        setMintError(null);
+        setMintError(draft.audioFileName ? `Re-attach your audio file (“${draft.audioFileName}”) — audio isn’t saved in drafts.` : null);
         // Restore the uploaded cover from the draft (audio is too large to persist, so it must
         // be re-selected — but at least the artwork survives a save/resume).
         if (draft.coverDataUrl) {
@@ -271,13 +273,23 @@ export default function UploadPage() {
         (payeesTotal === 100 && form.royaltyPayees.every(p => p.address.trim() !== ''));
 
     const canProceed = () => {
-        if (step === 0) return !!form.title && !!form.artist && !duplicate;
+        // A track must have audio — it's a music platform. Block advancing past
+        // the first step without an audio file (and a title/artist).
+        if (step === 0) return !!form.title && !!form.artist && !!audioFile && !duplicate;
         if (step === 2) return splitTotal === 100;
         return true;
     };
 
     const handlePublish = async () => {
         if (!walletKeys) return;
+        // Hard guard: never mint a track without playable audio. This also catches
+        // restored drafts — a draft can't persist the File, so audioFile is null
+        // after restore and the user must re-attach it.
+        if (!audioFile) {
+            setMintError('Add your audio file before minting — a track must have audio to be playable.');
+            setStep(0);
+            return;
+        }
         if (duplicate) {
             setMintError(`This exact audio is already minted as "${duplicate.title}" by ${duplicate.artist}. Re-minting an existing master isn't allowed.`);
             return;
