@@ -166,8 +166,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
     // Check if a play is allowed (gating logic)
     const checkPlayGate = useCallback(async (track: Track): Promise<boolean> => {
-        // No token symbol = no gating
-        if (!track.tokenSymbol) return true;
+        // No token symbol, or the artist opted into free streaming = no gating.
+        if (!track.tokenSymbol || track.freeStream) return true;
 
         const threshold = track.playGateThreshold || 50; // default from spec
         const currentPlays = getPlayCount(track.id);

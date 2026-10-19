@@ -858,7 +858,14 @@ export default function TrackDetail() {
                             <span className="chain-info-label">Total Supply</span>
                             <span className="chain-info-value">{(track.tokenSupply || 0).toLocaleString()}</span>
                         </div>
-                        {track.playGateThreshold && track.playGateThreshold > 0 && (
+                        {track.freeStream ? (
+                            <div className="chain-info-row">
+                                <span className="chain-info-label">Streaming</span>
+                                <span className="chain-info-value" style={{ color: '#16a34a', fontWeight: 600 }}>
+                                    Free · unlimited
+                                </span>
+                            </div>
+                        ) : track.playGateThreshold && track.playGateThreshold > 0 ? (
                             <div className="chain-info-row">
                                 <span className="chain-info-label">
                                     <Lock size={12} style={{ verticalAlign: -1, marginRight: 4 }} />
@@ -868,7 +875,7 @@ export default function TrackDetail() {
                                     Hold {track.playGateThreshold} {track.tokenSymbol} for unlimited
                                 </span>
                             </div>
-                        )}
+                        ) : null}
                         {track.premiumThreshold && track.premiumThreshold > 0 && (
                             <div className="chain-info-row">
                                 <span className="chain-info-label">Premium Access</span>

@@ -27,6 +27,7 @@ interface MintForm {
     /** Secondary-sale royalty as a percent (distinct from the primary revenue split). */
     secondaryRoyaltyPct: number;
     royaltyPayees: RoyaltyPayee[];
+    freeStream: boolean;
     playGateThreshold: number;
     premiumThreshold: number;
     poolPct: number;
@@ -101,6 +102,7 @@ const DEFAULT_FORM: MintForm = {
     royaltySplit: { artist: 60, tokenHolders: 25, collaborators: 10, platform: 5 },
     secondaryRoyaltyPct: 10,
     royaltyPayees: [],
+    freeStream: false,
     playGateThreshold: 50,
     premiumThreshold: 250,
     poolPct: 10,
@@ -372,8 +374,9 @@ export default function UploadPage() {
                 ...(form.royaltyPayees.length > 0
                     ? { royaltyPayees: form.royaltyPayees.map(p => ({ address: p.address.trim(), name: p.name?.trim() || undefined, pct: p.pct })) }
                     : {}),
-                playGateThreshold: form.playGateThreshold,
+                playGateThreshold: form.freeStream ? 0 : form.playGateThreshold,
                 premiumThreshold: form.premiumThreshold,
+                freeStream: form.freeStream,
             };
             const metadataPin = await pinJson(
                 metadata,
@@ -1118,13 +1121,33 @@ export default function UploadPage() {
                         </div>
 
                         <div className="form-group">
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={form.freeStream}
+                                    onChange={e => setForm({ ...form, freeStream: e.target.checked })}
+                                    style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0, cursor: 'pointer' }}
+                                />
+                                <span>
+                                    <span className="form-label" style={{ display: 'block' }}>Free streaming</span>
+                                    <span className="text-xs text-muted">
+                                        Unlimited free plays for everyone — no token needed to listen. Your song token is
+                                        still created for trading &amp; royalties. Great for discovery.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div className="form-group" style={form.freeStream ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
                             <label className="form-label">Play Gate (tokens required for unlimited streaming)</label>
                             <input type="number" className="form-input"
                                 value={form.playGateThreshold}
                                 onChange={e => setForm({ ...form, playGateThreshold: parseInt(e.target.value) || 0 })}
-                                min={0} />
+                                min={0} disabled={form.freeStream} />
                             <p className="text-xs text-muted" style={{ marginTop: 4 }}>
-                                First 3 plays are free. Users need this many tokens for unlimited plays. Set 0 to disable.
+                                {form.freeStream
+                                    ? 'Disabled — this track streams free for everyone.'
+                                    : 'First 3 plays are free. Users need this many tokens for unlimited plays. Set 0 to disable.'}
                             </p>
                         </div>
 
@@ -1376,7 +1399,7 @@ export default function UploadPage() {
                             <div className="chain-info-row">
                                 <span className="chain-info-label">Play Gate</span>
                                 <span className="chain-info-value">
-                                    {form.playGateThreshold > 0 ? `${form.playGateThreshold} tokens` : 'Disabled'}
+                                    {form.freeStream ? 'Free streaming' : form.playGateThreshold > 0 ? `${form.playGateThreshold} tokens` : 'Disabled'}
                                 </span>
                             </div>
                             <div className="chain-info-row">

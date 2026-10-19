@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Library as LibraryIcon, Wallet, Heart, Music, Droplets, Download, Upload, Loader, ThumbsUp } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
-import { usePlayer } from '../hooks/usePlayer';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { useNftTracks } from '../hooks/useNftTracks';
+import TrackRow from '../components/TrackRow';
 import { exportKeystore, importKeystore } from '../hooks/useKeystore';
 import { getNetworkId } from '../config/network';
-import { formatDuration, type Track } from '../data/mockData';
+import { type Track } from '../data/mockData';
 import type { NftToken, NftCollection } from '@rougechain/sdk';
 
 function nftToTrack(token: NftToken, collections: NftCollection[]): Track {
@@ -31,7 +31,6 @@ function nftToTrack(token: NftToken, collections: NftCollection[]): Track {
 
 export default function LibraryPage() {
     const { isConnected, publicKey, address, balance, connect, connectFromKeys, connectExtension, extensionDetected, isExtensionWallet, walletKeys, requestFaucet, isLoading } = useWallet();
-    const { play } = usePlayer();
     const rc = useRougeChain();
     const { collections } = useNftTracks();
     const [activeTab, setActiveTab] = useState<'owned' | 'liked' | 'all'>('owned');
@@ -291,34 +290,9 @@ export default function LibraryPage() {
                     <p>{activeTab === 'owned' ? 'Mint your first track to see it here!' : activeTab === 'liked' ? 'Like tracks to build your collection!' : 'No tracks available yet.'}</p>
                 </div>
             ) : (
-                <div className="track-list">
-                    <div className="track-list-header">
-                        <span>#</span>
-                        <span>Title</span>
-                        <span>Album</span>
-                        <span style={{ textAlign: 'right' }}>Duration</span>
-                    </div>
-                    {displayTracks.map((track, idx) => (
-                        <div
-                            key={track.id}
-                            className="track-list-item"
-                            onClick={() => play(track, displayTracks)}
-                        >
-                            <span className="track-list-num">{idx + 1}</span>
-                            <div className="track-list-info">
-                                <div className="track-list-thumb">
-                                    <img src={track.coverUrl} alt={track.title} />
-                                </div>
-                                <div>
-                                    <div className="track-list-name">{track.title}</div>
-                                    <div className="track-list-artist-name">{track.artist}</div>
-                                </div>
-                            </div>
-                            <span className="track-list-artist-name">{track.album}</span>
-                            <span className="track-list-duration">
-                                {formatDuration(track.duration)}
-                            </span>
-                        </div>
+                <div className="track-rows">
+                    {displayTracks.map(track => (
+                        <TrackRow key={track.id} track={track} queue={displayTracks} />
                     ))}
                 </div>
             )}
