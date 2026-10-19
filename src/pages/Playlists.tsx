@@ -6,8 +6,8 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useWallet } from '../hooks/useWallet';
 import { useRougeChain } from '../hooks/useRougeChain';
 import { useNftTracks } from '../hooks/useNftTracks';
-import { coverFallback } from '../utils/coverArt';
-import { formatDuration, MOCK_TRACKS, type Track } from '../data/mockData';
+import TrackRow from '../components/TrackRow';
+import { MOCK_TRACKS, type Track } from '../data/mockData';
 
 const LIKED_ID = 'liked';
 
@@ -233,39 +233,14 @@ export function PlaylistDetail() {
                     <p>{isLiked ? 'Like tracks and they’ll show up here.' : 'Add tracks from any song’s page.'}</p>
                 </div>
             ) : (
-                <div className="track-list">
-                    <div className="track-list-header">
-                        <span>#</span><span>Title</span><span>Album</span>
-                        <span style={{ textAlign: 'right' }}>Duration</span>
-                    </div>
-                    {tracks.map((track, idx) => (
-                        <div key={track.id} className="track-list-item" onClick={() => play(track, tracks)}>
-                            <span className="track-list-num">{idx + 1}</span>
-                            <div className="track-list-info">
-                                <div className="track-list-thumb">
-                                    <img
-                                        src={track.coverUrl} alt={track.title} loading="lazy"
-                                        onError={e => { const fb = coverFallback(track.title, track.id); if (e.currentTarget.src !== fb) e.currentTarget.src = fb; }}
-                                    />
-                                </div>
-                                <div>
-                                    <div className="track-list-name">{track.title}</div>
-                                    <div className="track-list-artist-name">{track.artist}</div>
-                                </div>
-                            </div>
-                            <span className="track-list-artist-name">{track.album}</span>
-                            <span className="track-list-duration" style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
-                                {formatDuration(track.duration)}
-                                {!isLiked && (
-                                    <button
-                                        className="player-btn" title="Remove from playlist"
-                                        onClick={e => { e.stopPropagation(); removeTrack(id, track.id); }}
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                )}
-                            </span>
-                        </div>
+                <div className="track-rows">
+                    {tracks.map(track => (
+                        <TrackRow
+                            key={track.id}
+                            track={track}
+                            queue={tracks}
+                            onRemove={isLiked ? undefined : () => removeTrack(id, track.id)}
+                        />
                     ))}
                 </div>
             )}

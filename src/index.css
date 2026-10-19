@@ -3016,3 +3016,22 @@ select,
   .home-feature-title { font-size: 1.6rem; }
   .hscroll-item { flex-basis: 140px; }
 }
+
+/* Optional trailing remove action on a track row */
+.scrow-remove {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition), background var(--transition);
+}
+.scrow:hover .scrow-remove { opacity: 1; }
+.scrow-remove:hover { color: var(--fg); background: var(--surface); }
+@media (hover: none) and (pointer: coarse) {
+  .scrow-remove { opacity: 1; }
+}

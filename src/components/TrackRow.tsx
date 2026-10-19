@@ -1,5 +1,5 @@
 import { useState, useEffect, memo } from 'react';
-import { Play, Pause, Heart } from 'lucide-react';
+import { Play, Pause, Heart, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Track } from '../data/mockData';
 import { usePlayer } from '../hooks/usePlayer';
@@ -10,7 +10,7 @@ import ArtistName from './ArtistName';
 import type { TrackStats } from '@rougechain/sdk';
 
 /** SoundCloud-style track row: artwork, artist · title, a waveform, play/like counts. */
-function TrackRow({ track, queue }: { track: Track; queue?: Track[] }) {
+function TrackRow({ track, queue, onRemove }: { track: Track; queue?: Track[]; onRemove?: () => void }) {
     const navigate = useNavigate();
     const { play, pause, seek, currentTrack, isPlaying, progress, duration } = usePlayer();
     const rc = useRougeChain();
@@ -94,6 +94,16 @@ function TrackRow({ track, queue }: { track: Track; queue?: Track[] }) {
                     })}
                 </div>
             </div>
+
+            {onRemove && (
+                <button
+                    className="scrow-remove"
+                    title="Remove"
+                    onClick={e => { e.stopPropagation(); onRemove(); }}
+                >
+                    <X size={16} />
+                </button>
+            )}
         </div>
     );
 }

@@ -41,3 +41,9 @@ export async function resolveArtistName(rc: RougeChain, creatorId: string): Prom
 export function cachedArtistName(creatorId: string): string | null | undefined {
     return cache.get(creatorId);
 }
+
+/** Drop a cached resolution so the next lookup re-hits the chain (e.g. right
+ *  after the user registers a name for their own wallet). */
+export function clearArtistNameCache(creatorId?: string): void {
+    if (creatorId) cache.delete(creatorId); else cache.clear();
+}
