@@ -12,7 +12,7 @@ import type { TrackStats } from '@rougechain/sdk';
 /** SoundCloud-style track row: artwork, artist · title, a waveform, play/like counts. */
 function TrackRow({ track, queue }: { track: Track; queue?: Track[] }) {
     const navigate = useNavigate();
-    const { play, pause, currentTrack, isPlaying, progress, duration } = usePlayer();
+    const { play, pause, seek, currentTrack, isPlaying, progress, duration } = usePlayer();
     const rc = useRougeChain();
     const [stats, setStats] = useState<TrackStats | null>(null);
 
@@ -31,6 +31,15 @@ function TrackRow({ track, queue }: { track: Track; queue?: Track[] }) {
         e.stopPropagation();
         if (playing) pause();
         else play(track, queue);
+    };
+
+    // Click the waveform of the playing track to seek (SoundCloud-style). For a
+    // track that isn't current, let the click bubble up and start it.
+    const onWaveClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isCurrent || duration <= 0) return;
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        seek(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
     };
 
     return (
@@ -67,7 +76,12 @@ function TrackRow({ track, queue }: { track: Track; queue?: Track[] }) {
                     )}
                 </div>
 
-                <div className="scrow-wave" aria-hidden>
+                <div
+                    className="scrow-wave"
+                    aria-hidden
+                    onClick={onWaveClick}
+                    style={isCurrent ? { cursor: 'pointer' } : undefined}
+                >
                     {peaks.map((p, i) => {
                         const played = (i / peaks.length) * 100 < playedPct;
                         return (
