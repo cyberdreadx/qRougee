@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
-import TrackCard from '../components/TrackCard';
+import TrackRow from '../components/TrackRow';
 import { GENRES } from '../data/mockData';
 import { useNftTracks } from '../hooks/useNftTracks';
 
 export default function SearchPage() {
     const [query, setQuery] = useState('');
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-    const { tracks } = useNftTracks();
+    const { playableTracks: tracks } = useNftTracks();
 
     const results = useMemo(() => {
         let filtered = tracks;
@@ -78,9 +78,9 @@ export default function SearchPage() {
                     </h2>
                 </div>
                 {results.length > 0 ? (
-                    <div className="track-grid">
+                    <div className="track-rows">
                         {results.map(track => (
-                            <TrackCard key={track.id} track={track} queue={results} />
+                            <TrackRow key={track.id} track={track} queue={results} />
                         ))}
                     </div>
                 ) : (

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useCallback, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { NftCollection, NftToken } from '@rougechain/sdk';
 import { useRougeChain } from './useRougeChain';
 import { MOCK_TRACKS, type Track, type RoyaltySplit, type RoyaltyPayee } from '../data/mockData';
@@ -89,6 +89,11 @@ function isAlbumCoverCollectible(t: Track): boolean {
 }
 
 interface NftTracksValue extends NftTracksState {
+    /** Listener-facing subset: only tracks that actually have playable audio.
+     *  Use on discovery surfaces (Home, Search) so non-music / audio-less NFTs
+     *  don't pollute the feed. `tracks` still carries everything for creator /
+     *  NFT pages (Explorer, Royalties, Trade, Artist). */
+    playableTracks: Track[];
     /** Re-fetch tracks. Forces a network round-trip by default (use after a
      *  mutation like mint/hide). Pass `{ force: false }` for a stale-guarded
      *  refresh that no-ops when the cache is still fresh. */
@@ -221,8 +226,14 @@ export function NftTracksProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener('focus', onFocus);
     }, [refetch]);
 
+    // Only tracks with real, playable audio belong in the listener feed.
+    const playableTracks = useMemo(
+        () => state.tracks.filter(t => !!t.audioUrl),
+        [state.tracks],
+    );
+
     return (
-        <NftTracksContext.Provider value={{ ...state, refetch }}>
+        <NftTracksContext.Provider value={{ ...state, playableTracks, refetch }}>
             {children}
         </NftTracksContext.Provider>
     );
