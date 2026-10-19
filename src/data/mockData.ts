@@ -36,6 +36,8 @@ export interface Track {
   royaltyPayees?: RoyaltyPayee[];
   playGateThreshold?: number;
   premiumThreshold?: number;
+  /** Artist opted this (tokenized) track into unlimited free streaming — no play gate. */
+  freeStream?: boolean;
   /** SHA-256 content fingerprint of the audio, for duplicate-mint detection. */
   audioHash?: string;
   /** Raw on-chain NFT attributes blob, used to render the Traits section. */
