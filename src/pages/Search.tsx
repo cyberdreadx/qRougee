@@ -7,7 +7,7 @@ import { useNftTracks } from '../hooks/useNftTracks';
 export default function SearchPage() {
     const [query, setQuery] = useState('');
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-    const { tracks } = useNftTracks();
+    const { playableTracks: tracks } = useNftTracks();
 
     const results = useMemo(() => {
         let filtered = tracks;

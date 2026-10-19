@@ -14,7 +14,7 @@ import type { Track } from '../data/mockData';
 export default function Home() {
     const { play, shuffle, toggleShuffle } = usePlayer();
     const navigate = useNavigate();
-    const { tracks, isLoading, error, refetch } = useNftTracks();
+    const { playableTracks: tracks, isLoading, error, refetch } = useNftTracks();
     const rc = useRougeChain();
     const rootRef = useAnimeEntrance<HTMLDivElement>({ staggerMs: 55, duration: 450, deps: [tracks.length] });
 
