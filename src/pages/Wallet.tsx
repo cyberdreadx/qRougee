@@ -11,6 +11,7 @@ import { exportKeystore, importKeystore } from '../hooks/useKeystore';
 import { getNetworkId } from '../config/network';
 import * as ext from '../utils/extensionSigner';
 import ArtistProfileCard from '../components/ArtistProfileCard';
+import NameRegisterCard from '../components/NameRegisterCard';
 
 /* ────────────────────────────────────────────────────────── */
 
@@ -485,7 +486,8 @@ export default function WalletPage() {
                 </div>
             </div>
 
-            {/* Artist display name */}
+            {/* Artist identity */}
+            <NameRegisterCard />
             <ArtistProfileCard />
 
             {/* Tabs */}
